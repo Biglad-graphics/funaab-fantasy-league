@@ -462,3 +462,12 @@ body[data-theme="light"] .auth-title,
 body[data-theme="light"] .auth-sub {
   color: #0D1F12;
 }
+body[data-theme="light"] {
+  background: #F0F4F1 !important;
+  color: #0D1F12 !important;
+}
+
+body[data-theme="dark"] {
+  background: #080C0A !important;
+  color: #E8F5E9 !important;
+}
