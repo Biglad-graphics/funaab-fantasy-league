@@ -5,6 +5,7 @@ import Home from '../components/Home.jsx'
 import Status from '../components/Status.jsx'
 import PickTeam from '../components/PickTeam.jsx'
 import Transfers from '../components/Transfers.jsx'
+import Admin from '../components/Admin.jsx'
 
 export default function Dashboard({ session }) {
   const [manager, setManager] = useState(null)
@@ -39,11 +40,13 @@ export default function Dashboard({ session }) {
         onLogout={handleLogout}
         darkMode={darkMode}
         toggleDarkMode={() => setDarkMode(!darkMode)}
+        isAdmin={manager?.is_admin}
       />
       {activePage === 'home' && <Home />}
       {activePage === 'status' && <Status manager={manager} />}
       {activePage === 'pickteam' && <PickTeam session={session} />}
       {activePage === 'transfers' && <Transfers session={session} />}
+      {activePage === 'admin' && manager?.is_admin && <Admin />}
     </>
   )
 }
