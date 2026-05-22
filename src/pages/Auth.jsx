@@ -47,95 +47,6 @@ export default function Auth() {
   }
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-bg" />
-      <div className="auth-overlay" />
-
-      <div className="auth-card">
-        <div className="auth-logo-wrap">
-          <img src="/funaab-fantasy-league/logo.png" alt="FFL" className="auth-logo-img" />
-        </div>
-
-        <h1 className="auth-title">FANTASY FUNAAB<br />FOOTBALL LEAGUE</h1>
-        <p className="auth-sub">{isLogin ? 'Sign in to manage your squad' : 'Create your manager account'}</p>
-
-        {error && <div className="auth-error">{error}</div>}
-
-        {!isLogin && (
-          <>
-            <input className="auth-input" name="display_name" placeholder="Team Name" onChange={handleChange} />
-            <input className="auth-input" name="matric_number" placeholder="Matric Number" onChange={handleChange} />
-            <input className="auth-input" name="department" placeholder="Department" onChange={handleChange} />
-          </>
-        )}
-
-        <input className="auth-input" name="email" placeholder="Email Address" type="email" onChange={handleChange} />
-        <input className="auth-input" name="password" placeholder="Password" type="password" onChange={handleChange} />
-
-        <button className="btn-primary auth-btn" onClick={isLogin ? handleLogin : handleRegister} disabled={loading}>
-          {loading ? 'PLEASE WAIT...' : isLogin ? 'LOGIN' : 'CREATE ACCOUNT'}
-        </button>
-
-        <p className="auth-toggle">
-          {isLogin ? "New manager? " : 'Already registered? '}
-          <span className="auth-link" onClick={() => { setIsLogin(!isLogin); setError(null) }}>
-            {isLogin ? 'Register here' : 'Login'}
-          </span>
-        </p>
-
-        <div className="auth-footer">FUNAAB LEAGUE · OFFICIAL FANTASY PLATFORM</div>
-      </div>
-    </div>
-  )
-}import { useState } from 'react'
-import { supabase } from '../lib/supabase'
-
-export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    display_name: '',
-    matric_number: '',
-    department: ''
-  })
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const handleLogin = async () => {
-    setLoading(true)
-    setError(null)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password
-    })
-    if (error) setError(error.message)
-    setLoading(false)
-  }
-
-  const handleRegister = async () => {
-    setLoading(true)
-    setError(null)
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password
-    })
-    if (error) { setError(error.message); setLoading(false); return }
-    const { error: profileError } = await supabase.from('managers').insert({
-      id: data.user.id,
-      display_name: form.display_name,
-      matric_number: form.matric_number,
-      department: form.department
-    })
-    if (profileError) setError(profileError.message)
-    setLoading(false)
-  }
-
-  return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bricolage+Grotesque:wght@300;400;600;800&display=swap" rel="stylesheet" />
       <div style={styles.wrapper}>
@@ -156,7 +67,11 @@ export default function Auth() {
               style={styles.logoImg}
               onError={e => { e.target.style.display = 'none' }}
             />
-           
+            <div style={styles.logo}>
+              FFL<span style={styles.logoSpan}>.</span>
+            </div>
+          </div>
+
           <h1 style={styles.title}>FUNAAB<br />FANTASY LEAGUE</h1>
           <p style={styles.subtitle}>
             {isLogin ? 'Sign in to manage your squad' : 'Create your manager account'}
