@@ -133,7 +133,7 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
             <div className="ac-title">Add New Player</div>
             <div className="admin-form">
               <input className="auth-input" placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
-              <select className="auth-input" value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}
+             <select className="auth-input" value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
                 <option>GK</option>
                 <option>DF</option>
                 <option>MF</option>
