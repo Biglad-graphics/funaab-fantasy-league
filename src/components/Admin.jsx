@@ -11,7 +11,8 @@ export default function Admin() {
   const [toast, setToast] = useState(null)
 
   // Player form
-  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0 })
+  const POSITION_PRICES = { GK: 5.5, DF: 6.0, MF: 7.0, FW: 8.5 }
+const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0 })
 
   // Match form
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
