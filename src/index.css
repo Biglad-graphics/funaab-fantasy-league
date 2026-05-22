@@ -44,3 +44,135 @@ body {
   background: #0a0f1e;
   color: #ffffff;
 }
+
+/* AUTH */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-bg {
+  position: fixed;
+  inset: 0;
+  background-image: url('/funaab-fantasy-league/field.png');
+  background-size: cover;
+  background-position: center;
+  filter: blur(3px) brightness(0.3);
+  transform: scale(1.05);
+  z-index: 0;
+}
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88));
+  z-index: 1;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 2;
+  background: rgba(13,20,16,0.95);
+  border: 1px solid var(--border);
+  padding: 2.5rem 2rem;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 1rem;
+  backdrop-filter: blur(20px);
+}
+
+.auth-logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.2rem;
+}
+
+.auth-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.auth-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.9rem;
+  text-align: center;
+  color: var(--text);
+  line-height: 1.05;
+  letter-spacing: 3px;
+}
+
+.auth-sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.auth-input {
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.auth-input:focus { border-color: rgba(0,230,118,0.4); }
+
+.auth-btn {
+  width: 100%;
+  padding: 0.9rem;
+  letter-spacing: 2px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  margin-top: 0.3rem;
+}
+
+.auth-error {
+  color: var(--red);
+  font-size: 0.78rem;
+  text-align: center;
+  background: rgba(239,154,154,0.08);
+  border: 1px solid rgba(239,154,154,0.2);
+  padding: 0.6rem;
+  border-radius: 7px;
+  font-weight: 600;
+}
+
+.auth-toggle {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.auth-link {
+  color: var(--green);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.auth-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
