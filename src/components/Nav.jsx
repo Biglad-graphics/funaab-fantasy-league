@@ -1,9 +1,10 @@
-export default function Nav({ activePage, setActivePage, onLogout, darkMode, toggleDarkMode }) {
+export default function Nav({ activePage, setActivePage, onLogout, darkMode, toggleDarkMode, isAdmin }) {
   const links = [
     { id: 'home', label: 'Home' },
     { id: 'status', label: 'My Status' },
     { id: 'pickteam', label: 'Pick Team' },
     { id: 'transfers', label: 'Transfers' },
+    ...(isAdmin ? [{ id: 'admin', label: '🔐 Admin' }] : [])
   ]
 
   return (
