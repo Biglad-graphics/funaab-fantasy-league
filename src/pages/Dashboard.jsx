@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import Nav from '../components/Nav'
-import Home from '../components/Home'
-import Status from '../components/Status'
-import PickTeam from '../components/PickTeam'
-import Transfers from '../components/Transfers'
+import Nav from '../components/Nav.jsx'
+import Home from '../components/Home.jsx'
+import Status from '../components/Status.jsx'
+import PickTeam from '../components/PickTeam.jsx'
+import Transfers from '../components/Transfers.jsx'
 
 export default function Dashboard({ session }) {
   const [manager, setManager] = useState(null)
