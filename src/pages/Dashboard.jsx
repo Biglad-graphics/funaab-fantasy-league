@@ -9,6 +9,7 @@ import Transfers from '../components/Transfers.jsx'
 export default function Dashboard({ session }) {
   const [manager, setManager] = useState(null)
   const [activePage, setActivePage] = useState('home')
+  const [darkMode, setDarkMode] = useState(true)
 
   useEffect(() => {
     const fetchManager = async () => {
@@ -22,6 +23,10 @@ export default function Dashboard({ session }) {
     fetchManager()
   }, [session])
 
+  useEffect(() => {
+    document.body.setAttribute('data-theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
@@ -32,6 +37,8 @@ export default function Dashboard({ session }) {
         activePage={activePage}
         setActivePage={setActivePage}
         onLogout={handleLogout}
+        darkMode={darkMode}
+        toggleDarkMode={() => setDarkMode(!darkMode)}
       />
       {activePage === 'home' && <Home />}
       {activePage === 'status' && <Status manager={manager} />}
