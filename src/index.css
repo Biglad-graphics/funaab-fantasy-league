@@ -338,3 +338,127 @@ body {
 /* PICKTEAM & TRANSFERS */
 .pickteam-wrap { padding: 7rem 3rem 4rem; max-width: 980px; margin: 0 auto; }
 .transfers-wrap { padding: 7rem 3rem 4rem; max-width: 1100px; margin: 0 auto; }
+
+/* LIGHT MODE */
+body[data-theme="light"] {
+  --green: #00A854;
+  --gold: #C8970A;
+  --dark: #F0F4F1;
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #D4E4D8;
+  --text: #0D1F12;
+  --muted: #5A7A5E;
+  --red: #C0392B;
+  --blue: #2471A3;
+  background: #F0F4F1;
+  color: #0D1F12;
+}
+
+body[data-theme="light"] .nav {
+  background: rgba(240,244,241,0.97);
+  border-bottom: 1px solid var(--border);
+}
+
+body[data-theme="light"] .nav-btn {
+  color: #3A5A3E;
+}
+
+body[data-theme="light"] .nav-btn:hover {
+  background: rgba(0,168,84,0.08);
+}
+
+body[data-theme="light"] .hero-bg {
+  background: radial-gradient(ellipse 80% 60% at 50% 110%, rgba(0,168,84,0.08) 0%, transparent 70%);
+}
+
+body[data-theme="light"] .points-card,
+body[data-theme="light"] .sc,
+body[data-theme="light"] .leaderboard,
+body[data-theme="light"] .welcome-card {
+  background: #FFFFFF;
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .stats-bar {
+  background: #FFFFFF;
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .auth-card {
+  background: rgba(255,255,255,0.97);
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .auth-input {
+  background: #F7FAF8;
+  border-color: var(--border);
+  color: #0D1F12;
+}
+
+body[data-theme="light"] .auth-title,
+body[data-theme="light"] .auth-sub {
+  color: #0D1F12;
+}
+
+/* LIGHT MODE */
+body[data-theme="light"] {
+  --green: #00A854;
+  --gold: #C8970A;
+  --dark: #F0F4F1;
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #D4E4D8;
+  --text: #0D1F12;
+  --muted: #5A7A5E;
+  --red: #C0392B;
+  --blue: #2471A3;
+  background: #F0F4F1;
+  color: #0D1F12;
+}
+
+body[data-theme="light"] .nav {
+  background: rgba(240,244,241,0.97);
+  border-bottom: 1px solid var(--border);
+}
+
+body[data-theme="light"] .nav-btn {
+  color: #3A5A3E;
+}
+
+body[data-theme="light"] .nav-btn:hover {
+  background: rgba(0,168,84,0.08);
+}
+
+body[data-theme="light"] .hero-bg {
+  background: radial-gradient(ellipse 80% 60% at 50% 110%, rgba(0,168,84,0.08) 0%, transparent 70%);
+}
+
+body[data-theme="light"] .points-card,
+body[data-theme="light"] .sc,
+body[data-theme="light"] .leaderboard,
+body[data-theme="light"] .welcome-card {
+  background: #FFFFFF;
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .stats-bar {
+  background: #FFFFFF;
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .auth-card {
+  background: rgba(255,255,255,0.97);
+  border-color: var(--border);
+}
+
+body[data-theme="light"] .auth-input {
+  background: #F7FAF8;
+  border-color: var(--border);
+  color: #0D1F12;
+}
+
+body[data-theme="light"] .auth-title,
+body[data-theme="light"] .auth-sub {
+  color: #0D1F12;
+}
