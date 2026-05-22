@@ -1,4 +1,4 @@
-export default function Nav({ activePage, setActivePage, onLogout }) {
+export default function Nav({ activePage, setActivePage, onLogout, darkMode, toggleDarkMode }) {
   const links = [
     { id: 'home', label: 'Home' },
     { id: 'status', label: 'My Status' },
@@ -8,9 +8,12 @@ export default function Nav({ activePage, setActivePage, onLogout }) {
 
   return (
     <nav className="nav">
-      <div className="logo" onClick={() => setActivePage('home')}>
-        FFL<span className="logo-span">.</span>
-      </div>
+      <img
+        src="/funaab-fantasy-league/logo.png"
+        alt="FFL Logo"
+        style={{ width: '42px', height: '42px', objectFit: 'contain', cursor: 'pointer' }}
+        onClick={() => setActivePage('home')}
+      />
       <div className="nav-links">
         {links.map(l => (
           <button
@@ -21,6 +24,9 @@ export default function Nav({ activePage, setActivePage, onLogout }) {
             {l.label}
           </button>
         ))}
+        <button className="nav-btn" onClick={toggleDarkMode} title="Toggle theme">
+          {darkMode ? '☀️' : '🌙'}
+        </button>
         <button className="nav-btn nav-cta" onClick={onLogout}>Logout</button>
       </div>
     </nav>
