@@ -530,3 +530,28 @@ body[data-theme="dark"] {
 .swap-toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--card); border: 1px solid var(--green); color: var(--text); padding: .7rem 1.5rem; border-radius: 8px; font-size: .82rem; font-weight: 700; opacity: 0; transition: all .3s; z-index: 9998; pointer-events: none; }
 .swap-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .swap-toast.bad { border-color: var(--red); color: var(--red); }
+
+/* ADMIN */
+.admin-wrap { padding: 7rem 3rem 4rem; max-width: 1100px; margin: 0 auto; }
+.admin-hd { margin-bottom: 1.2rem; }
+.admin-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.admin-tab { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: .55rem 1.2rem; font-size: .8rem; font-weight: 700; letter-spacing: 1px; color: var(--muted); cursor: pointer; transition: all .2s; }
+.admin-tab:hover { color: var(--text); }
+.admin-tab.active { background: rgba(0,230,118,.09); border-color: var(--green); color: var(--green); }
+.admin-section {}
+.admin-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem; }
+.ac-title { font-weight: 800; font-size: .82rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1rem; color: var(--text); }
+.admin-form { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.admin-form .btn-primary { grid-column: span 2; }
+.match-row { display: flex; justify-content: space-between; align-items: center; padding: .85rem 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: .5rem; }
+.match-row:last-child { border-bottom: none; }
+.mr-teams { font-weight: 700; font-size: .88rem; }
+.mr-meta { font-size: .7rem; color: var(--muted); margin-top: .15rem; }
+.status-badge { font-size: .62rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; padding: .2rem .6rem; border-radius: 100px; }
+.status-badge.scheduled { background: rgba(100,181,246,.1); color: var(--blue); }
+.status-badge.live { background: rgba(0,230,118,.1); color: var(--green); }
+.status-badge.completed { background: rgba(90,122,94,.1); color: var(--muted); }
+.live-banner { background: linear-gradient(135deg,rgba(0,230,118,.07),transparent); border: 1px solid rgba(0,230,118,.25); border-radius: 12px; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.live-tag { display: flex; align-items: center; gap: .4rem; font-size: .65rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--green); margin-bottom: .4rem; }
+.live-fixture { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; }
+.live-meta { font-size: .72rem; color: var(--muted); margin-top: .2rem; }
