@@ -1,4 +1,39 @@
-* {
+:root {
+  --green: #00E676;
+  --gold: #FFD700;
+  --dark: #080C0A;
+  --surface: #0D1410;
+  --card: #111A13;
+  --border: #1E2E20;
+  --text: #E8F5E9;
+  --muted: #5A7A5E;
+  --red: #EF9A9A;
+  --blue: #64B5F6;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--dark);
+  color: var(--text);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: .5;
+}
+
+button { cursor: pointer; }
+input, button { font-family: 'Bricolage Grotesque', sans-serif; }* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
