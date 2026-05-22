@@ -67,9 +67,7 @@ export default function Auth() {
               style={styles.logoImg}
               onError={e => { e.target.style.display = 'none' }}
             />
-            <div style={styles.logo}>
-              FFL<span style={styles.logoSpan}>.</span>
-            </div>
+        
           </div>
 
           <h1 style={styles.title}>FUNAAB<br />FANTASY LEAGUE</h1>
