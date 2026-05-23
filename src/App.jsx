@@ -28,11 +28,17 @@ function App() {
   }, [])
 
   const fetchManager = async (userId) => {
-    const { data } = await supabase
-      .from('managers')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    // Retry up to 5 times to wait for profile to be created
+    let data = null
+    for (let i = 0; i < 5; i++) {
+      const { data: result } = await supabase
+        .from('managers')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (result) { data = result; break }
+      await new Promise(r => setTimeout(r, 1000))
+    }
     setManager(data)
     setLoading(false)
   }
@@ -43,23 +49,25 @@ function App() {
     </div>
   )
 
-  // Not logged in
   if (!session) {
     if (showAuth) return <Auth onBack={() => setShowAuth(false)} />
     return <Landing onJoin={() => setShowAuth(true)} />
   }
 
-  // Logged in but payment pending
-  if (manager?.payment_status === 'pending') {
+  if (!manager) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080C0A', color: '#5A7A5E', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', letterSpacing: '3px' }}>
+      SETTING UP YOUR ACCOUNT...
+    </div>
+  )
+
+  if (manager.payment_status === 'pending') {
     return <Pending onLogout={() => supabase.auth.signOut()} />
   }
 
-  // Logged in but payment rejected
-  if (manager?.payment_status === 'rejected') {
+  if (manager.payment_status === 'rejected') {
     return <Pending rejected onLogout={() => supabase.auth.signOut()} />
   }
 
-  // Fully confirmed
   return <Dashboard session={session} manager={manager} />
 }
 
