@@ -11,6 +11,16 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [showAuth, setShowAuth] = useState(false)
 
+  const fetchManager = async (userId) => {
+    const { data } = await supabase
+      .from('managers')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    setManager(data || null)
+    setLoading(false)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -26,31 +36,6 @@ function App() {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  const fetchManager = async (userId) => {
-  const { data } = await supabase
-    .from('managers')
-    .select('*')
-    .eq('id', userId)
-    .single()
-  setManager(data || null)
-  setLoading(false)
-    }
-  
-    // Retry up to 5 times to wait for profile to be created
-    let data = null
-    for (let i = 0; i < 5; i++) {
-      const { data: result } = await supabase
-        .from('managers')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      if (result) { data = result; break }
-      await new Promise(r => setTimeout(r, 1000))
-    }
-    setManager(data)
-    setLoading(false)
-  }
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080C0A', color: '#00E676', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '3px' }}>
