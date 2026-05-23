@@ -261,4 +261,82 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
       )}
     </div>
   )
+
+  function PaymentsTab() {
+  const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState(null)
+
+  useEffect(() => { fetchPayments() }, [])
+
+  const fetchPayments = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('managers')
+      .select('*')
+      .order('payment_status', { ascending: true })
+    setPayments(data || [])
+    setLoading(false)
+  }
+
+  const showToast = (msg, bad = false) => {
+    setToast({ msg, bad })
+    setTimeout(() => setToast(null), 2500)
+  }
+
+  const confirm = async (id, name) => {
+    await supabase.from('managers').update({ payment_status: 'confirmed' }).eq('id', id)
+    showToast(`✅ ${name} confirmed!`)
+    fetchPayments()
+  }
+
+  const reject = async (id, name) => {
+    await supabase.from('managers').update({ payment_status: 'rejected' }).eq('id', id)
+    showToast(`❌ ${name} rejected`, true)
+    fetchPayments()
+  }
+
+  if (loading) return <div style={{ padding: '2rem', color: 'var(--muted)' }}>Loading...</div>
+
+  return (
+    <div className="admin-section">
+      {toast && <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>}
+      <div className="admin-card">
+        <div className="ac-title">Payment Submissions ({payments.length})</div>
+        {payments.length === 0 && (
+          <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>No submissions yet</div>
+        )}
+        {payments.map(m => (
+          <div key={m.id} className="payment-row">
+            <div>
+              <div className="mr-teams">{m.display_name}</div>
+              <div className="mr-meta">{m.department}</div>
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className={`status-badge ${m.payment_status}`}>{m.payment_status}</span>
+              {m.payment_proof && (
+                <a href={m.payment_proof} target="_blank" rel="noreferrer"
+                  style={{ fontSize: '.72rem', color: 'var(--green)', fontWeight: '700' }}>
+                  View Screenshot
+                </a>
+              )}
+              {m.payment_status === 'pending' && (
+                <>
+                  <button className="btn-primary" style={{ padding: '.35rem .9rem', fontSize: '.72rem' }}
+                    onClick={() => confirm(m.id, m.display_name)}>
+                    Confirm ✅
+                  </button>
+                  <button className="btn-outline" style={{ padding: '.35rem .9rem', fontSize: '.72rem', borderColor: 'var(--red)', color: 'var(--red)' }}
+                    onClick={() => reject(m.id, m.display_name)}>
+                    Reject ❌
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+                    }
 }
