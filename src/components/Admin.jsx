@@ -274,7 +274,7 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
   const { data, error } = await supabase
     .from('managers')
     .select('*')
-  console.log('payments data:', data, 'error:', error)
+  alert(JSON.stringify({ count: data?.length, error: error?.message }))
   setPayments(data || [])
   setLoading(false)
   }
