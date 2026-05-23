@@ -75,6 +75,9 @@ export default function Auth({ onBack }) {
     })
 
     if (profileError) { setError(profileError.message); setLoading(false); return }
+ 
+    // Sign out after registration so they login manually
+await supabase.auth.signOut()
 
     setSubmitted(true)
     setLoading(false)
