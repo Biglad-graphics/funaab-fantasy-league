@@ -583,3 +583,9 @@ body[data-theme="dark"] {
 /* LANDING FOOTER */
 .landing-footer { border-top: 1px solid var(--border); padding: 2rem 3rem; display: flex; align-items: center; gap: 1rem; justify-content: center; flex-direction: column; }
 .landing-footer p { font-size: .72rem; color: var(--muted); text-align: center; }
+
+.payment-row { display: flex; justify-content: space-between; align-items: center; padding: .85rem 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: .5rem; }
+.payment-row:last-child { border-bottom: none; }
+.status-badge.pending { background: rgba(255,215,0,.1); color: var(--gold); }
+.status-badge.confirmed { background: rgba(0,230,118,.1); color: var(--green); }
+.status-badge.rejected { background: rgba(239,154,154,.1); color: var(--red); }
