@@ -28,6 +28,15 @@ function App() {
   }, [])
 
   const fetchManager = async (userId) => {
+  const { data } = await supabase
+    .from('managers')
+    .select('*')
+    .eq('id', userId)
+    .single()
+  setManager(data || null)
+  setLoading(false)
+  }
+  
     // Retry up to 5 times to wait for profile to be created
     let data = null
     for (let i = 0; i < 5; i++) {
