@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const TABS = ['Players', 'Matches', 'Live Match', 'Payments']
+const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
   const [tab, setTab] = useState('Players')
@@ -9,15 +10,8 @@ export default function Admin() {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
-
-  // Player form
-  const POSITION_PRICES = { GK: 5.5, DF: 6.0, MF: 7.0, FW: 8.5 }
-const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0 })
-
-  // Match form
+  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0 })
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
-
-  // Live match
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
   const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
@@ -40,12 +34,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     setTimeout(() => setToast(null), 2500)
   }
 
-  {/* PAYMENTS TAB */}
-      {tab === 'Payments' && (
-        <PaymentsTab />
-      )}
-
-  // ADD PLAYER
   const addPlayer = async () => {
     if (!pForm.name || !pForm.team) return showToast('⚠ Fill all fields', true)
     const { error } = await supabase.from('players').insert(pForm)
@@ -55,7 +43,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     fetchAll()
   }
 
-  // DELETE PLAYER
   const deletePlayer = async (id, name) => {
     if (!confirm(`Remove ${name}?`)) return
     await supabase.from('players').delete().eq('id', id)
@@ -63,7 +50,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     fetchAll()
   }
 
-  // ADD MATCH
   const addMatch = async () => {
     if (!mForm.home_team || !mForm.away_team) return showToast('⚠ Fill all fields', true)
     const { error } = await supabase.from('matches').insert(mForm)
@@ -73,7 +59,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     fetchAll()
   }
 
-  // SET MATCH LIVE
   const goLive = async (match) => {
     await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
     setLiveMatch(match)
@@ -83,7 +68,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     fetchAll()
   }
 
-  // END MATCH
   const endMatch = async () => {
     if (!liveMatch) return
     await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
@@ -92,7 +76,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     fetchAll()
   }
 
-  // ADD EVENT
   const addEvent = async () => {
     if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
     const { error } = await supabase.from('match_events').insert({
@@ -111,34 +94,28 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
 
   return (
     <div className="admin-wrap">
-      {toast && (
-        <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>
-      )}
+      {toast && <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>}
 
       <div className="admin-hd">
-        <div>
-          <div className="section-tag">🔐 Admin Panel</div>
-          <h2 className="section-title" style={{ fontSize: '2rem' }}>Control Center</h2>
-        </div>
+        <div className="section-tag">🔐 Admin Panel</div>
+        <h2 className="section-title" style={{ fontSize: '2rem' }}>Control Center</h2>
       </div>
 
-      {/* Tabs */}
       <div className="admin-tabs">
         {TABS.map(t => (
           <button key={t} className={`admin-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : '🔴 '}{t}
+            {t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : '💳 '}{t}
           </button>
         ))}
       </div>
 
-      {/* PLAYERS TAB */}
       {tab === 'Players' && (
         <div className="admin-section">
           <div className="admin-card">
             <div className="ac-title">Add New Player</div>
             <div className="admin-form">
               <input className="auth-input" placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
-             <select className="auth-input" value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
+              <select className="auth-input" value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
                 <option>GK</option>
                 <option>DF</option>
                 <option>MF</option>
@@ -149,7 +126,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
               <button className="btn-primary" onClick={addPlayer}>Add Player</button>
             </div>
           </div>
-
           <div className="admin-card" style={{ marginTop: '1.2rem' }}>
             <div className="ac-title">All Players ({players.length})</div>
             <div className="player-list">
@@ -171,7 +147,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
         </div>
       )}
 
-      {/* MATCHES TAB */}
       {tab === 'Matches' && (
         <div className="admin-section">
           <div className="admin-card">
@@ -185,7 +160,6 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
               <button className="btn-primary" onClick={addMatch}>Create Match</button>
             </div>
           </div>
-
           <div className="admin-card" style={{ marginTop: '1.2rem' }}>
             <div className="ac-title">All Matches</div>
             {matches.map(m => (
@@ -209,15 +183,12 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
         </div>
       )}
 
-      {/* LIVE MATCH TAB */}
       {tab === 'Live Match' && (
         <div className="admin-section">
           {!liveMatch ? (
             <div className="admin-card">
               <div className="ac-title">No Live Match</div>
-              <p style={{ color: 'var(--muted)', fontSize: '.85rem', marginTop: '.5rem' }}>
-                Go to Matches tab and click "Go Live" to start a match.
-              </p>
+              <p style={{ color: 'var(--muted)', fontSize: '.85rem', marginTop: '.5rem' }}>Go to Matches tab and click "Go Live" to start a match.</p>
             </div>
           ) : (
             <>
@@ -227,11 +198,8 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
                   <div className="live-fixture">{liveMatch.home_team} vs {liveMatch.away_team}</div>
                   <div className="live-meta">GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
                 </div>
-                <button className="btn-outline" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={endMatch}>
-                  End Match
-                </button>
+                <button className="btn-outline" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={endMatch}>End Match</button>
               </div>
-
               <div className="admin-card" style={{ marginTop: '1.2rem' }}>
                 <div className="ac-title">Add Match Event</div>
                 <div className="admin-form">
@@ -259,10 +227,13 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
           )}
         </div>
       )}
+
+      {tab === 'Payments' && <PaymentsTab />}
     </div>
   )
+}
 
-  function PaymentsTab() {
+function PaymentsTab() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
@@ -270,13 +241,13 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
   useEffect(() => { fetchPayments() }, [])
 
   const fetchPayments = async () => {
-  setLoading(true)
-  const { data, error } = await supabase
-    .from('managers')
-    .select('*')
-  alert(JSON.stringify({ count: data?.length, error: error?.message }))
-  setPayments(data || [])
-  setLoading(false)
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('managers')
+      .select('*')
+    alert(JSON.stringify({ count: data?.length, error: error?.message }))
+    setPayments(data || [])
+    setLoading(false)
   }
 
   const showToast = (msg, bad = false) => {
@@ -303,9 +274,7 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
       {toast && <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>}
       <div className="admin-card">
         <div className="ac-title">Payment Submissions ({payments.length})</div>
-        {payments.length === 0 && (
-          <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>No submissions yet</div>
-        )}
+        {payments.length === 0 && <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>No submissions yet</div>}
         {payments.map(m => (
           <div key={m.id} className="payment-row">
             <div>
@@ -315,21 +284,14 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <span className={`status-badge ${m.payment_status}`}>{m.payment_status}</span>
               {m.payment_proof && (
-                <a href={m.payment_proof} target="_blank" rel="noreferrer"
-                  style={{ fontSize: '.72rem', color: 'var(--green)', fontWeight: '700' }}>
+                <a href={m.payment_proof} target="_blank" rel="noreferrer" style={{ fontSize: '.72rem', color: 'var(--green)', fontWeight: '700' }}>
                   View Screenshot
                 </a>
               )}
               {m.payment_status === 'pending' && (
                 <>
-                  <button className="btn-primary" style={{ padding: '.35rem .9rem', fontSize: '.72rem' }}
-                    onClick={() => confirm(m.id, m.display_name)}>
-                    Confirm ✅
-                  </button>
-                  <button className="btn-outline" style={{ padding: '.35rem .9rem', fontSize: '.72rem', borderColor: 'var(--red)', color: 'var(--red)' }}
-                    onClick={() => reject(m.id, m.display_name)}>
-                    Reject ❌
-                  </button>
+                  <button className="btn-primary" style={{ padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => confirm(m.id, m.display_name)}>Confirm ✅</button>
+                  <button className="btn-outline" style={{ padding: '.35rem .9rem', fontSize: '.72rem', borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => reject(m.id, m.display_name)}>Reject ❌</button>
                 </>
               )}
             </div>
@@ -338,5 +300,4 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
       </div>
     </div>
   )
-                    }
-}
+      }
