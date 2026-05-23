@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const TABS = ['Players', 'Matches', 'Live Match']
+const TABS = ['Players', 'Matches', 'Live Match', 'Payments']
 
 export default function Admin() {
   const [tab, setTab] = useState('Players')
@@ -39,6 +39,11 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
     setToast({ msg, bad })
     setTimeout(() => setToast(null), 2500)
   }
+
+  {/* PAYMENTS TAB */}
+      {tab === 'Payments' && (
+        <PaymentsTab />
+      )}
 
   // ADD PLAYER
   const addPlayer = async () => {
