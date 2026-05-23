@@ -11,16 +11,6 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [showAuth, setShowAuth] = useState(false)
 
-  const fetchManager = async (userId) => {
-    const { data } = await supabase
-      .from('managers')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setManager(data || null)
-    setLoading(false)
-  }
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -37,6 +27,27 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  const fetchManager = async (userId) => {
+    let data = null
+    let attempts = 0
+    while (!data && attempts < 5) {
+      const { data: result } = await supabase
+        .from('managers')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (result) { data = result; break }
+      attempts++
+      await new Promise(r => setTimeout(r, 1500))
+    }
+    if (!data) {
+      await supabase.auth.signOut()
+      return
+    }
+    setManager(data)
+    setLoading(false)
+  }
+
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080C0A', color: '#00E676', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '3px' }}>
       LOADING...
@@ -48,17 +59,11 @@ function App() {
     return <Landing onJoin={() => setShowAuth(true)} />
   }
 
-  if (!manager) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080C0A', color: '#5A7A5E', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', letterSpacing: '3px' }}>
-      SETTING UP YOUR ACCOUNT...
-    </div>
-  )
-
-  if (manager.payment_status === 'pending') {
+  if (manager?.payment_status === 'pending') {
     return <Pending onLogout={() => supabase.auth.signOut()} />
   }
 
-  if (manager.payment_status === 'rejected') {
+  if (manager?.payment_status === 'rejected') {
     return <Pending rejected onLogout={() => supabase.auth.signOut()} />
   }
 
