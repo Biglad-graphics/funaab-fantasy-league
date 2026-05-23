@@ -35,7 +35,7 @@ function App() {
     .single()
   setManager(data || null)
   setLoading(false)
-  }
+    }
   
     // Retry up to 5 times to wait for profile to be created
     let data = null
