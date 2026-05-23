@@ -270,13 +270,15 @@ const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 
   useEffect(() => { fetchPayments() }, [])
 
   const fetchPayments = async () => {
-    setLoading(true)
-    const { data } = await supabase
-      .from('managers')
-      .select('*')
-      .order('payment_status', { ascending: true })
-    setPayments(data || [])
-    setLoading(false)
+  const fetchPayments = async () => {
+  setLoading(true)
+  const { data, error } = await supabase
+    .from('managers')
+    .select('*')
+    .order('created_at', { ascending: false })
+  console.log('payments data:', data, 'error:', error)
+  setPayments(data || [])
+  setLoading(false)
   }
 
   const showToast = (msg, bad = false) => {
