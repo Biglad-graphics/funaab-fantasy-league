@@ -476,3 +476,4 @@ const styles = {
   toast: { position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
       }
+}
