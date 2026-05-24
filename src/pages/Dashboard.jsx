@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Admin from '../components/Admin.jsx'
 import Home from '../components/Home.jsx'
+import Leaderboard from '../components/Leaderboard.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
@@ -32,6 +33,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
       <div style={{ paddingTop: '5rem', padding: '6rem 2rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
         {activePage === 'home' && <Home manager={manager} />}
+        {activePage === 'leaderboard' && <Leaderboard manager={manager} />}
         {activePage === 'admin' && manager?.is_admin && <Admin />}
         {!['home', 'admin'].includes(activePage) && (
           <div style={{ textAlign: 'center', paddingTop: '4rem' }}>
