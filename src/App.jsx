@@ -1,51 +1,61 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import Auth from './pages/Auth'
-import Dashboard from './pages/Dashboard'
 import Landing from './pages/Landing'
+import Auth from './pages/Auth'
 import Pending from './pages/Pending'
+import Welcome from './pages/Welcome'
+import Dashboard from './pages/Dashboard'
+import Payment from './pages/Payment'
 
-function App() {
+export default function App() {
   const [session, setSession] = useState(null)
   const [manager, setManager] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showAuth, setShowAuth] = useState(false)
+  const [page, setPage] = useState('landing')
 
   useEffect(() => {
+    // Handle email confirmation redirect
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setSession(session)
+          fetchManager(session.user.id)
+        }
+      })
+      // Clean URL
+      window.history.replaceState(null, '', window.location.pathname)
+      return
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       if (session) fetchManager(session.user.id)
       else setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session) fetchManager(session.user.id)
-      else { setManager(null); setLoading(false) }
+      else { setManager(null); setLoading(false); setPage('landing') }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   const fetchManager = async (userId) => {
-    let data = null
-    let attempts = 0
-    while (!data && attempts < 5) {
-      const { data: result } = await supabase
-        .from('managers')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      if (result) { data = result; break }
-      attempts++
-      await new Promise(r => setTimeout(r, 1500))
-    }
-    if (!data) {
-      await supabase.auth.signOut()
-      return
-    }
+    const { data } = await supabase
+      .from('managers')
+      .select('*')
+      .eq('id', userId)
+      .single()
     setManager(data)
     setLoading(false)
+  }
+
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setPage('landing')
   }
 
   if (loading) return (
@@ -54,20 +64,25 @@ function App() {
     </div>
   )
 
+  // Not logged in
   if (!session) {
-    if (showAuth) return <Auth onBack={() => setShowAuth(false)} />
-    return <Landing onJoin={() => setShowAuth(true)} />
+    if (page === 'register') return <Auth setPage={setPage} />
+    if (page === 'login') return <Auth isLogin setPage={setPage} />
+    return <Landing setPage={setPage} />
   }
 
-  if (manager?.payment_status === 'pending') {
-    return <Pending onLogout={() => supabase.auth.signOut()} />
-  }
+  // Logged in but no manager profile yet → Payment page
+  if (!manager) return <Payment session={session} onDone={() => fetchManager(session.user.id)} onLogout={logout} />
 
-  if (manager?.payment_status === 'rejected') {
-    return <Pending rejected onLogout={() => supabase.auth.signOut()} />
-  }
+  // Payment pending
+  if (manager.payment_status === 'pending') return <Pending manager={manager} onLogout={logout} />
 
-  return <Dashboard session={session} manager={manager} />
+  // Payment rejected
+  if (manager.payment_status === 'rejected') return <Pending rejected manager={manager} onLogout={logout} />
+
+  // First time — no team set up yet
+  if (manager.is_new_user) return <Welcome manager={manager} onDone={() => fetchManager(session.user.id)} />
+
+  // Fully confirmed
+  return <Dashboard session={session} manager={manager} onLogout={logout} refetchManager={() => fetchManager(session.user.id)} />
 }
-
-export default App
