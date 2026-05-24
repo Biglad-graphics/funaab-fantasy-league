@@ -1,19 +1,27 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import Admin from '../components/Admin.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
-  const [darkMode, setDarkMode] = useState(true)
+
+  const pages = [
+    { id: 'home', label: 'Home' },
+    { id: 'fixtures', label: 'Fixtures' },
+    { id: 'leaderboard', label: 'Leaderboard' },
+    { id: 'myteam', label: 'My Team' },
+    { id: 'profile', label: 'Profile' },
+    ...(manager?.is_admin ? [{ id: 'admin', label: '🔐 Admin' }] : [])
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#080C0A', color: '#E8F5E9', fontFamily: 'Bricolage Grotesque, sans-serif' }}>
       {/* Nav */}
       <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,10,0.97)', borderBottom: '1px solid #1E2E20', backdropFilter: 'blur(10px)' }}>
         <img src="/funaab-fantasy-league/logo.png" alt="FFL" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          {['home', 'fixtures', 'leaderboard', 'myteam', 'profile'].map(p => (
-            <button key={p} onClick={() => setActivePage(p)} style={{ background: activePage === p ? 'rgba(0,230,118,.09)' : 'transparent', border: activePage === p ? '1px solid #00E676' : '1px solid transparent', color: activePage === p ? '#00E676' : '#5A7A5E', padding: '.4rem .8rem', borderRadius: '6px', fontSize: '.72rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
-              {p === 'myteam' ? 'My Team' : p.charAt(0).toUpperCase() + p.slice(1)}
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+          {pages.map(p => (
+            <button key={p.id} onClick={() => setActivePage(p.id)} style={{ background: activePage === p.id ? 'rgba(0,230,118,.09)' : 'transparent', border: activePage === p.id ? '1px solid #00E676' : '1px solid transparent', color: activePage === p.id ? '#00E676' : '#5A7A5E', padding: '.4rem .8rem', borderRadius: '6px', fontSize: '.72rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
+              {p.label}
             </button>
           ))}
           <button onClick={onLogout} style={{ background: '#00E676', border: 'none', color: '#080C0A', padding: '.4rem .8rem', borderRadius: '6px', fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', cursor: 'pointer' }}>
@@ -23,7 +31,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
       </nav>
 
       {/* Content */}
-      <div style={{ paddingTop: '5rem', padding: '6rem 2rem 2rem' }}>
+      <div style={{ paddingTop: '5rem', padding: '6rem 2rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
         {activePage === 'home' && (
           <div>
             <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚡ Dashboard</div>
@@ -43,16 +51,12 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
                 </div>
               ))}
             </div>
-            <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
-              <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.8rem' }}>🚧 Coming Soon</div>
-              <p style={{ color: '#5A7A5E', fontSize: '.88rem', lineHeight: 1.7 }}>
-                Fixtures, live match updates, full leaderboard and team management are being built. Stay tuned!
-              </p>
-            </div>
           </div>
         )}
 
-        {activePage !== 'home' && (
+        {activePage === 'admin' && manager?.is_admin && <Admin />}
+
+        {!['home', 'admin'].includes(activePage) && (
           <div style={{ textAlign: 'center', paddingTop: '4rem' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
             <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '.5rem' }}>COMING SOON</h2>
@@ -62,4 +66,4 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
       </div>
     </div>
   )
-                           }
+}
