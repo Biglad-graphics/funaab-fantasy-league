@@ -5,7 +5,7 @@ const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
-  const [tab, setTab] = useState('Payments')
+  const [tab, setTab] = useState('Teams')
   const [teams, setTeams] = useState([])
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
@@ -18,24 +18,33 @@ export default function Admin() {
   const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
 
   useEffect(() => { fetchAll() }, [])
+  useEffect(() => { if (tab === 'Live Match') fetchLiveMatch() }, [tab])
 
   const fetchAll = async () => {
-  const fetchAll = async () => {
-  setLoading(true)
-  const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
-    supabase.from('teams').select('*').order('name'),
-    supabase.from('players').select('*').order('position'),
-    supabase.from('matches').select('*').order('matchday', { ascending: false })
-  ])
-  setTeams(t || [])
-  setPlayers(p || [])
-  setMatches(m || [])
-  setLoading(false)
+    setLoading(true)
+    const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
+      supabase.from('teams').select('*').order('name'),
+      supabase.from('players').select('*').order('position'),
+      supabase.from('matches').select('*').order('matchday', { ascending: false })
+    ])
+    setTeams(t || [])
+    setPlayers(p || [])
+    setMatches(m || [])
+    setLoading(false)
   }
-    
+
+  const fetchLiveMatch = async () => {
+    const { data } = await supabase.from('matches').select('*').eq('status', 'live').single()
+    if (data) {
+      setLiveMatch(data)
+      const { data: players } = await supabase.from('players').select('*').order('position')
+      setMatchPlayers(players || [])
+    }
+  }
+
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
-    setTimeout(() => setToast(null), 2500)
+    setTimeout(() => setToast(null), 3000)
   }
 
   const addPlayer = async () => {
@@ -43,7 +52,7 @@ export default function Admin() {
     const { error } = await supabase.from('players').insert(pForm)
     if (error) return showToast('❌ Failed to add player', true)
     showToast(`✅ ${pForm.name} added!`)
-    setPForm({ name: '', position: 'GK', team: '', price: 5.0 })
+    setPForm({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
     fetchAll()
   }
 
@@ -73,128 +82,95 @@ export default function Admin() {
   }
 
   const endMatch = async () => {
-  if (!liveMatch) return
-  showToast('⏳ Calculating points...')
+    if (!liveMatch) return
+    showToast('⏳ Calculating points...')
 
-  // Get all events for this match
-  const { data: events } = await supabase
-    .from('match_events')
-    .select('*')
-    .eq('match_id', liveMatch.id)
+    const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
 
-  // Points per event type
-  const pointsMap = {
-    goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
-    assist: 3,
-    clean_sheet_GK: 4, clean_sheet_DF: 4,
-    started: 1, played_90: 2,
-    yellow: -1, red: -3,
-    own_goal: -3, penalty_missed: -2
-  }
-
-  // Calculate points per player
-  const playerPoints = {}
-  for (const event of events || []) {
-    if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
-    const player = matchPlayers.find(p => p.id === event.player_id)
-    const pos = player?.position || 'FW'
-
-    let pts = 0
-    if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
-    else if (event.event_type === 'assist') pts = pointsMap.assist
-    else if (event.event_type === 'started') pts = pointsMap.started
-    else if (event.event_type === 'played_90') pts = pointsMap.played_90
-    else if (event.event_type === 'yellow') pts = pointsMap.yellow
-    else if (event.event_type === 'red') pts = pointsMap.red
-    else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
-    else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
-
-    playerPoints[event.player_id] += pts
-  }
-
-  // Check clean sheets — if a GK/DF played and no goals conceded
-  const homeGoals = (events || []).filter(e => e.event_type === 'goal').length
-  if (homeGoals === 0) {
-    for (const player of matchPlayers) {
-      if (['GK', 'DF'].includes(player.position)) {
-        const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-        if (played) {
-          if (!playerPoints[player.id]) playerPoints[player.id] = 0
-          playerPoints[player.id] += 4
-        }
-      }
+    const pointsMap = {
+      goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
+      assist: 3, started: 1, played_90: 2,
+      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2
     }
-  }
 
-  // Get all managers with squads
-  const { data: allSquads } = await supabase
-    .from('squads')
-    .select('*, managers(id, total_points)')
+    const playerPoints = {}
+    for (const event of events || []) {
+      if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
+      const player = matchPlayers.find(p => p.id === event.player_id)
+      const pos = player?.position || 'FW'
+      let pts = 0
+      if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
+      else if (event.event_type === 'assist') pts = pointsMap.assist
+      else if (event.event_type === 'started') pts = pointsMap.started
+      else if (event.event_type === 'played_90') pts = pointsMap.played_90
+      else if (event.event_type === 'yellow') pts = pointsMap.yellow
+      else if (event.event_type === 'red') pts = pointsMap.red
+      else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
+      else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
+      playerPoints[event.player_id] += pts
+    }
 
-  // Group squads by manager
-  const managerSquads = {}
-  for (const sq of allSquads || []) {
-    if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
-    managerSquads[sq.manager_id].push(sq)
-  }
-
-  // Calculate points per manager
-  for (const [managerId, squad] of Object.entries(managerSquads)) {
-    let totalMatchPoints = 0
-
-    for (const sq of squad) {
-      const playerPts = playerPoints[sq.player_id] || 0
-      const multiplier = sq.is_captain ? 2 : 1
-      const isStarting = sq.is_starting
-
-      // Auto-sub: if starter didn't play, use bench player of same position
-      if (isStarting) {
-        const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
-        if (!didPlay) {
-          // Find bench player of same position
-          const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
-          if (benchSub) {
-            totalMatchPoints += playerPoints[benchSub.player_id] || 0
-            continue
+    // Clean sheet check
+    const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
+    if (goalsScored === 0) {
+      for (const player of matchPlayers) {
+        if (['GK', 'DF'].includes(player.position)) {
+          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
+          if (played) {
+            if (!playerPoints[player.id]) playerPoints[player.id] = 0
+            playerPoints[player.id] += 4
           }
         }
       }
-
-      if (isStarting) totalMatchPoints += playerPts * multiplier
     }
 
-    // Update manager total points
-    const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
-    const newTotal = (currentManager?.total_points || 0) + totalMatchPoints
-
-    await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
-
-    // Save matchday points
-    await supabase.from('matchday_points').insert({
-      manager_id: managerId,
-      matchday: liveMatch.matchday,
-      points: totalMatchPoints
-    })
-  }
-
-  // Update player stats (goals, assists)
-  for (const [playerId, pts] of Object.entries(playerPoints)) {
-    const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
-    const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
-    if (playerGoals > 0 || playerAssists > 0) {
-      const current = matchPlayers.find(p => p.id === playerId)
-      await supabase.from('players').update({
-        goals: (current?.goals || 0) + playerGoals,
-        assists: (current?.assists || 0) + playerAssists
-      }).eq('id', playerId)
+    // Get all squads
+    const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
+    const managerSquads = {}
+    for (const sq of allSquads || []) {
+      if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
+      managerSquads[sq.manager_id].push(sq)
     }
-  }
 
-  await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
-  showToast('✅ Points calculated & match ended!')
-  setLiveMatch(null)
-  fetchAll()
+    // Calculate & update manager points
+    for (const [managerId, squad] of Object.entries(managerSquads)) {
+      let totalMatchPoints = 0
+      for (const sq of squad) {
+        const playerPts = playerPoints[sq.player_id] || 0
+        const multiplier = sq.is_captain ? 2 : 1
+        if (sq.is_starting) {
+          const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
+          if (!didPlay) {
+            const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
+            if (benchSub) { totalMatchPoints += playerPoints[benchSub.player_id] || 0; continue }
+          }
+          totalMatchPoints += playerPts * multiplier
+        }
       }
+      const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
+      const newTotal = (currentManager?.total_points || 0) + totalMatchPoints
+      await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
+      await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
+    }
+
+    // Update player stats
+    for (const [playerId] of Object.entries(playerPoints)) {
+      const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
+      const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
+      if (playerGoals > 0 || playerAssists > 0) {
+        const current = matchPlayers.find(p => p.id === playerId)
+        await supabase.from('players').update({
+          goals: (current?.goals || 0) + playerGoals,
+          assists: (current?.assists || 0) + playerAssists
+        }).eq('id', playerId)
+      }
+    }
+
+    await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
+    showToast('✅ Points calculated & match ended!')
+    setLiveMatch(null)
+    fetchAll()
+  }
 
   const addEvent = async () => {
     if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
@@ -210,6 +186,19 @@ export default function Admin() {
     setEventForm({ player_id: '', event_type: 'goal', minute: '' })
   }
 
+  const markAllAppearances = async (eventType) => {
+    if (!liveMatch || matchPlayers.length === 0) return showToast('⚠ No players loaded', true)
+    const rows = matchPlayers.map(p => ({
+      match_id: liveMatch.id,
+      player_id: p.id,
+      event_type: eventType,
+      minute: eventType === 'played_90' ? 90 : 1
+    }))
+    const { error } = await supabase.from('match_events').insert(rows)
+    if (error) return showToast('❌ Failed', true)
+    showToast(`✅ All players marked as ${eventType}!`)
+  }
+
   if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
   return (
@@ -222,55 +211,55 @@ export default function Admin() {
       <div style={styles.tabs}>
         {TABS.map(t => (
           <button key={t} style={{ ...styles.tab, ...(tab === t ? styles.tabActive : {}) }} onClick={() => setTab(t)}>
-            {t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : '💳 '}{t}
+            {t === 'Teams' ? '🏟 ' : t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : '💳 '}{t}
           </button>
         ))}
       </div>
 
       {/* TEAMS */}
-{tab === 'Teams' && (
-  <div>
-    <div style={styles.card}>
-      <div style={styles.cardTitle}>All Teams ({teams.length})</div>
-      {teams.map(t => (
-        <div key={t.id} style={{ ...styles.row, justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{t.name}</div>
-            <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{t.short_name}</div>
+      {tab === 'Teams' && (
+        <div>
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>All Teams ({teams.length})</div>
+            {teams.map(t => (
+              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.7rem 0', borderBottom: '1px solid #1E2E20' }}>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{t.name}</div>
+                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{t.short_name}</div>
+                </div>
+                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
+                  {players.filter(p => p.team === t.name).length} players
+                </div>
+              </div>
+            ))}
           </div>
-          <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
-            {players.filter(p => p.team === t.name).length} players
+
+          <div style={{ ...styles.card, marginTop: '1rem' }}>
+            <div style={styles.cardTitle}>Players Per Team</div>
+            {teams.map(t => {
+              const teamPlayers = players.filter(p => p.team === t.name)
+              return (
+                <div key={t.id} style={{ marginBottom: '1.2rem', paddingBottom: '1.2rem', borderBottom: '1px solid #1E2E20' }}>
+                  <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>
+                    {t.name} ({teamPlayers.length})
+                  </div>
+                  {teamPlayers.length === 0 ? (
+                    <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>No players added yet</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
+                      {teamPlayers.map(p => (
+                        <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>
+                          {p.position} · {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
-      ))}
-    </div>
-
-    <div style={{ ...styles.card, marginTop: '1rem' }}>
-      <div style={styles.cardTitle}>Players Per Team</div>
-      {teams.map(t => {
-        const teamPlayers = players.filter(p => p.team === t.name)
-        return (
-          <div key={t.id} style={{ marginBottom: '1.2rem', paddingBottom: '1.2rem', borderBottom: '1px solid #1E2E20' }}>
-            <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>
-              {t.name} ({teamPlayers.length})
-            </div>
-            {teamPlayers.length === 0 ? (
-              <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>No players added yet</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
-                {teamPlayers.map(p => (
-                  <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>
-                    {p.position} · {p.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  </div>
-)}
+      )}
 
       {/* PLAYERS */}
       {tab === 'Players' && (
@@ -283,9 +272,9 @@ export default function Admin() {
                 <option>GK</option><option>DF</option><option>MF</option><option>FW</option>
               </select>
               <select style={styles.input} value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })}>
-  <option value="">Select Team</option>
-  {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-</select>
+                <option value="">Select Team</option>
+                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
               <input style={styles.input} type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
               <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addPlayer}>Add Player</button>
             </div>
@@ -295,7 +284,7 @@ export default function Admin() {
             {players.map(p => (
               <div key={p.id} style={styles.row}>
                 <div style={{ ...styles.posBadge, background: p.position === 'GK' ? 'rgba(255,215,0,.1)' : p.position === 'DF' ? 'rgba(0,230,118,.1)' : p.position === 'MF' ? 'rgba(100,181,246,.1)' : 'rgba(239,154,154,.1)', color: p.position === 'GK' ? '#FFD700' : p.position === 'DF' ? '#00E676' : p.position === 'MF' ? '#64B5F6' : '#EF9A9A' }}>{p.position}</div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name}</div>
                   <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team}</div>
                 </div>
@@ -315,8 +304,14 @@ export default function Admin() {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Create Match</div>
             <div style={styles.form}>
-              <input style={styles.input} placeholder="Home Team" value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })} />
-              <input style={styles.input} placeholder="Away Team" value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })} />
+              <select style={styles.input} value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })}>
+                <option value="">Home Team</option>
+                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+              <select style={styles.input} value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })}>
+                <option value="">Away Team</option>
+                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
               <input style={styles.input} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
               <input style={styles.input} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
               <input style={styles.input} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
@@ -352,17 +347,28 @@ export default function Admin() {
             </div>
           ) : (
             <>
-              <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)' }}>
+              <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
                     <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>{liveMatch.home_team} vs {liveMatch.away_team}</div>
                     <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
                   </div>
-                  <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match</button>
+                  <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match & Calculate Points</button>
                 </div>
               </div>
-              <div style={{ ...styles.card, marginTop: '1rem' }}>
+
+              {/* Bulk appearance buttons */}
+              <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>
+                  ▶ Mark All Started
+                </button>
+                <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>
+                  ✅ Mark All Played 90
+                </button>
+              </div>
+
+              <div style={styles.card}>
                 <div style={styles.cardTitle}>Add Match Event</div>
                 <div style={styles.form}>
                   <select style={styles.input} value={eventForm.player_id} onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}>
@@ -428,19 +434,19 @@ function PaymentsTab() {
   if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
   return (
-    <div style={styles.card}>
-      {toast && <div style={{ ...styles.toast, ...(toast.bad ? styles.toastBad : {}) }}>{toast.msg}</div>}
-      <div style={styles.cardTitle}>Payment Submissions ({payments.length})</div>
+    <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
+      {toast && <div style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+      <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Payment Submissions ({payments.length})</div>
       {payments.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No submissions yet</div>}
       {payments.map(m => (
-        <div key={m.id} style={{ ...styles.row, flexWrap: 'wrap', gap: '.5rem', paddingBottom: '.85rem', marginBottom: '.85rem', borderBottom: '1px solid #1E2E20' }}>
-          <div style={{ flex: 1 }}>
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.85rem 0', borderBottom: '1px solid #1E2E20', flexWrap: 'wrap', gap: '.5rem' }}>
+          <div>
             <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.full_name || m.display_name || 'Unknown'}</div>
             <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{m.matric_number} · {m.department}</div>
             {m.transaction_id && <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>TXN: {m.transaction_id}</div>}
           </div>
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ ...styles.badge, background: m.payment_status === 'confirmed' ? 'rgba(0,230,118,.1)' : m.payment_status === 'rejected' ? 'rgba(239,154,154,.1)' : 'rgba(255,215,0,.1)', color: m.payment_status === 'confirmed' ? '#00E676' : m.payment_status === 'rejected' ? '#EF9A9A' : '#FFD700' }}>
+            <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px', background: m.payment_status === 'confirmed' ? 'rgba(0,230,118,.1)' : m.payment_status === 'rejected' ? 'rgba(239,154,154,.1)' : 'rgba(255,215,0,.1)', color: m.payment_status === 'confirmed' ? '#00E676' : m.payment_status === 'rejected' ? '#EF9A9A' : '#FFD700' }}>
               {m.payment_status}
             </span>
             {m.payment_proof && (
@@ -448,8 +454,8 @@ function PaymentsTab() {
             )}
             {m.payment_status === 'pending' && (
               <>
-                <button style={{ ...styles.btn, padding: '.3rem .7rem', fontSize: '.72rem' }} onClick={() => confirm(m.id, m.full_name || m.display_name)}>Confirm ✅</button>
-                <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .7rem', fontSize: '.72rem' }} onClick={() => reject(m.id, m.full_name || m.display_name)}>Reject ❌</button>
+                <button style={{ padding: '.3rem .7rem', borderRadius: '6px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.72rem', border: 'none', cursor: 'pointer' }} onClick={() => confirm(m.id, m.full_name || m.display_name)}>Confirm ✅</button>
+                <button style={{ padding: '.3rem .7rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontWeight: '800', fontSize: '.72rem', cursor: 'pointer' }} onClick={() => reject(m.id, m.full_name || m.display_name)}>Reject ❌</button>
               </>
             )}
           </div>
@@ -470,10 +476,9 @@ const styles = {
   form: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem' },
   input: { padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', width: '100%' },
   btn: { padding: '.75rem 1rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.82rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
-  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem' },
+  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
   posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
   badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
   toast: { position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-      }
-}
+              }
