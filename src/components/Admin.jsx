@@ -379,7 +379,9 @@ export default function Admin() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>{liveMatch.home_team} vs {liveMatch.away_team}</div>
+                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>
+                      {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
+                       </div>
                     <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
                   </div>
                   <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match & Calculate Points</button>
