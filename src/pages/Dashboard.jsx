@@ -16,7 +16,6 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
   return (
     <div style={{ minHeight: '100vh', background: '#080C0A', color: '#E8F5E9', fontFamily: 'Bricolage Grotesque, sans-serif' }}>
-      {/* Nav */}
       <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,10,0.97)', borderBottom: '1px solid #1E2E20', backdropFilter: 'blur(10px)' }}>
         <img src="/funaab-fantasy-league/logo.png" alt="FFL" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
@@ -31,29 +30,17 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
         </div>
       </nav>
 
-      {/* Content */}
       <div style={{ paddingTop: '5rem', padding: '6rem 2rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
         {activePage === 'home' && <Home manager={manager} />}
-            <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '1.5rem' }}>
-              Welcome, {manager?.team_name || manager?.full_name}!
-            </h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-              {[
-                { label: 'Total Points', value: manager?.total_points ?? 0, color: '#00E676' },
-                { label: 'Team Name', value: manager?.team_name || '—', color: '#E8F5E9' },
-                { label: 'Free Transfers', value: manager?.free_transfers ?? 1, color: '#FFD700' },
-                { label: 'Budget Left', value: `₦${manager?.budget ?? 100}M`, color: '#64B5F6' }
-              ].map(s => (
-                <div key={s.label} style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.2rem' }}>
-                  <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.4rem' }}>{s.label}</div>
-                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: s.color }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
+        {activePage === 'admin' && manager?.is_admin && <Admin />}
+        {!['home', 'admin'].includes(activePage) && (
+          <div style={{ textAlign: 'center', paddingTop: '4rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
+            <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '.5rem' }}>COMING SOON</h2>
+            <p style={{ color: '#5A7A5E', fontSize: '.88rem' }}>This section is being built.</p>
           </div>
         )}
-
-        {activePage === 'admin' && manager?.is_admin && <Admin />}
-      
+      </div>
+    </div>
   )
 }
