@@ -21,7 +21,7 @@ export default function Payment({ session, onDone, onLogout }) {
     setError(null)
 
     const fileExt = screenshot.name.split('.').pop()
-    const fileName = `${session.user.id}.${fileExt}`
+    const fileName = `${session.user.id}-${Date.now()}.${fileExt}`
     const { error: uploadError } = await supabase.storage
       .from('payment-proofs')
       .upload(fileName, screenshot, { upsert: true })
