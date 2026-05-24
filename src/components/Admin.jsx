@@ -5,7 +5,7 @@ const TABS = ['Players', 'Matches', 'Live Match', 'Payments']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
-  const [tab, setTab] = useState('Players')
+  const [tab, setTab] = useState('Payments')
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -90,126 +90,118 @@ export default function Admin() {
     setEventForm({ player_id: '', event_type: 'goal', minute: '' })
   }
 
-  if (loading) return <div style={{ padding: '8rem 3rem', color: 'var(--muted)' }}>Loading...</div>
+  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
   return (
-    <div className="admin-wrap">
-      {toast && <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>}
+    <div style={styles.wrap}>
+      {toast && <div style={{ ...styles.toast, ...(toast.bad ? styles.toastBad : {}) }}>{toast.msg}</div>}
 
-      <div className="admin-hd">
-        <div className="section-tag">🔐 Admin Panel</div>
-        <h2 className="section-title" style={{ fontSize: '2rem' }}>Control Center</h2>
-      </div>
+      <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>🔐 Admin</div>
+      <h2 style={styles.title}>Control Center</h2>
 
-      <div className="admin-tabs">
+      <div style={styles.tabs}>
         {TABS.map(t => (
-          <button key={t} className={`admin-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+          <button key={t} style={{ ...styles.tab, ...(tab === t ? styles.tabActive : {}) }} onClick={() => setTab(t)}>
             {t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : '💳 '}{t}
           </button>
         ))}
       </div>
 
+      {/* PLAYERS */}
       {tab === 'Players' && (
-        <div className="admin-section">
-          <div className="admin-card">
-            <div className="ac-title">Add New Player</div>
-            <div className="admin-form">
-              <input className="auth-input" placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
-              <select className="auth-input" value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
-                <option>GK</option>
-                <option>DF</option>
-                <option>MF</option>
-                <option>FW</option>
+        <div>
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>Add New Player</div>
+            <div style={styles.form}>
+              <input style={styles.input} placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
+              <select style={styles.input} value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
+                <option>GK</option><option>DF</option><option>MF</option><option>FW</option>
               </select>
-              <input className="auth-input" placeholder="Team Name" value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })} />
-              <input className="auth-input" type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
-              <button className="btn-primary" onClick={addPlayer}>Add Player</button>
+              <input style={styles.input} placeholder="Team Name" value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })} />
+              <input style={styles.input} type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
+              <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addPlayer}>Add Player</button>
             </div>
           </div>
-          <div className="admin-card" style={{ marginTop: '1.2rem' }}>
-            <div className="ac-title">All Players ({players.length})</div>
-            <div className="player-list">
-              {players.map(p => (
-                <div key={p.id} className="pool-item">
-                  <div className={`pi-pos-b ${p.position === 'GK' ? 'pb-gk' : p.position === 'DF' ? 'pb-def' : p.position === 'MF' ? 'pb-mid' : 'pb-fwd'}`}>{p.position}</div>
-                  <div>
-                    <div className="pi-name">{p.name}</div>
-                    <div className="pi-team">{p.team}</div>
-                  </div>
-                  <div className="pi-form">{p.goals ?? 0}⚽ {p.assists ?? 0}🅰</div>
-                  <div className="pi-price">₦{p.price}M</div>
-                  <button className="add-btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => deletePlayer(p.id, p.name)}>✕</button>
-                </div>
-              ))}
-              {players.length === 0 && <div style={{ padding: '1.5rem', color: 'var(--muted)', textAlign: 'center' }}>No players yet</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab === 'Matches' && (
-        <div className="admin-section">
-          <div className="admin-card">
-            <div className="ac-title">Create Match</div>
-            <div className="admin-form">
-              <input className="auth-input" placeholder="Home Team" value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })} />
-              <input className="auth-input" placeholder="Away Team" value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })} />
-              <input className="auth-input" type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
-              <input className="auth-input" placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
-              <input className="auth-input" type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
-              <button className="btn-primary" onClick={addMatch}>Create Match</button>
-            </div>
-          </div>
-          <div className="admin-card" style={{ marginTop: '1.2rem' }}>
-            <div className="ac-title">All Matches</div>
-            {matches.map(m => (
-              <div key={m.id} className="match-row">
+          <div style={{ ...styles.card, marginTop: '1rem' }}>
+            <div style={styles.cardTitle}>All Players ({players.length})</div>
+            {players.map(p => (
+              <div key={p.id} style={styles.row}>
+                <div style={{ ...styles.posBadge, background: p.position === 'GK' ? 'rgba(255,215,0,.1)' : p.position === 'DF' ? 'rgba(0,230,118,.1)' : p.position === 'MF' ? 'rgba(100,181,246,.1)' : 'rgba(239,154,154,.1)', color: p.position === 'GK' ? '#FFD700' : p.position === 'DF' ? '#00E676' : p.position === 'MF' ? '#64B5F6' : '#EF9A9A' }}>{p.position}</div>
                 <div>
-                  <div className="mr-teams">{m.home_team} vs {m.away_team}</div>
-                  <div className="mr-meta">GW{m.matchday} · {m.venue || 'TBD'}</div>
+                  <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name}</div>
+                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                  <span className={`status-badge ${m.status}`}>{m.status}</span>
-                  {m.status === 'scheduled' && (
-                    <button className="btn-primary" style={{ padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => { goLive(m); setTab('Live Match') }}>
-                      Go Live
-                    </button>
-                  )}
-                </div>
+                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>{p.goals ?? 0}⚽ {p.assists ?? 0}🅰</div>
+                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
+                <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .6rem', fontSize: '.72rem' }} onClick={() => deletePlayer(p.id, p.name)}>✕</button>
               </div>
             ))}
-            {matches.length === 0 && <div style={{ padding: '1.5rem', color: 'var(--muted)', textAlign: 'center' }}>No matches yet</div>}
+            {players.length === 0 && <div style={{ padding: '1.5rem', color: '#5A7A5E', textAlign: 'center' }}>No players yet</div>}
           </div>
         </div>
       )}
 
+      {/* MATCHES */}
+      {tab === 'Matches' && (
+        <div>
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>Create Match</div>
+            <div style={styles.form}>
+              <input style={styles.input} placeholder="Home Team" value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })} />
+              <input style={styles.input} placeholder="Away Team" value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })} />
+              <input style={styles.input} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
+              <input style={styles.input} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
+              <input style={styles.input} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
+              <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addMatch}>Create Match</button>
+            </div>
+          </div>
+          <div style={{ ...styles.card, marginTop: '1rem' }}>
+            <div style={styles.cardTitle}>All Matches</div>
+            {matches.map(m => (
+              <div key={m.id} style={styles.row}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
+                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>GW{m.matchday} · {m.venue || 'TBD'}</div>
+                </div>
+                <span style={{ ...styles.badge, background: m.status === 'live' ? 'rgba(0,230,118,.1)' : m.status === 'completed' ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#5A7A5E' : '#64B5F6' }}>{m.status}</span>
+                {m.status === 'scheduled' && (
+                  <button style={{ ...styles.btn, padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => { goLive(m); setTab('Live Match') }}>Go Live</button>
+                )}
+              </div>
+            ))}
+            {matches.length === 0 && <div style={{ padding: '1.5rem', color: '#5A7A5E', textAlign: 'center' }}>No matches yet</div>}
+          </div>
+        </div>
+      )}
+
+      {/* LIVE MATCH */}
       {tab === 'Live Match' && (
-        <div className="admin-section">
+        <div>
           {!liveMatch ? (
-            <div className="admin-card">
-              <div className="ac-title">No Live Match</div>
-              <p style={{ color: 'var(--muted)', fontSize: '.85rem', marginTop: '.5rem' }}>Go to Matches tab and click "Go Live" to start a match.</p>
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>No Live Match</div>
+              <p style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.5rem' }}>Go to Matches tab and click "Go Live".</p>
             </div>
           ) : (
             <>
-              <div className="live-banner">
-                <div>
-                  <div className="live-tag"><span className="live-dot" />LIVE</div>
-                  <div className="live-fixture">{liveMatch.home_team} vs {liveMatch.away_team}</div>
-                  <div className="live-meta">GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
+              <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
+                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>{liveMatch.home_team} vs {liveMatch.away_team}</div>
+                    <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
+                  </div>
+                  <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match</button>
                 </div>
-                <button className="btn-outline" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={endMatch}>End Match</button>
               </div>
-              <div className="admin-card" style={{ marginTop: '1.2rem' }}>
-                <div className="ac-title">Add Match Event</div>
-                <div className="admin-form">
-                  <select className="auth-input" value={eventForm.player_id} onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}>
+              <div style={{ ...styles.card, marginTop: '1rem' }}>
+                <div style={styles.cardTitle}>Add Match Event</div>
+                <div style={styles.form}>
+                  <select style={styles.input} value={eventForm.player_id} onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}>
                     <option value="">Select Player</option>
-                    {matchPlayers.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.position} — {p.team})</option>
-                    ))}
+                    {matchPlayers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position} — {p.team})</option>)}
                   </select>
-                  <select className="auth-input" value={eventForm.event_type} onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}>
+                  <select style={styles.input} value={eventForm.event_type} onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}>
                     <option value="goal">⚽ Goal</option>
                     <option value="assist">🅰 Assist</option>
                     <option value="yellow">🟨 Yellow Card</option>
@@ -219,8 +211,8 @@ export default function Admin() {
                     <option value="started">▶ Started Match</option>
                     <option value="played_90">✅ Played 90 mins</option>
                   </select>
-                  <input className="auth-input" type="number" placeholder="Minute (optional)" value={eventForm.minute} onChange={e => setEventForm({ ...eventForm, minute: e.target.value })} />
-                  <button className="btn-primary" onClick={addEvent}>Add Event</button>
+                  <input style={styles.input} type="number" placeholder="Minute (optional)" value={eventForm.minute} onChange={e => setEventForm({ ...eventForm, minute: e.target.value })} />
+                  <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addEvent}>Add Event</button>
                 </div>
               </div>
             </>
@@ -228,6 +220,7 @@ export default function Admin() {
         </div>
       )}
 
+      {/* PAYMENTS */}
       {tab === 'Payments' && <PaymentsTab />}
     </div>
   )
@@ -242,10 +235,7 @@ function PaymentsTab() {
 
   const fetchPayments = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('managers')
-      .select('*')
-    alert(JSON.stringify({ count: data?.length, error: error?.message }))
+    const { data } = await supabase.from('managers').select('*').order('created_at', { ascending: false })
     setPayments(data || [])
     setLoading(false)
   }
@@ -267,37 +257,54 @@ function PaymentsTab() {
     fetchPayments()
   }
 
-  if (loading) return <div style={{ padding: '2rem', color: 'var(--muted)' }}>Loading...</div>
+  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
   return (
-    <div className="admin-section">
-      {toast && <div className={`swap-toast show${toast.bad ? ' bad' : ''}`}>{toast.msg}</div>}
-      <div className="admin-card">
-        <div className="ac-title">Payment Submissions ({payments.length})</div>
-        {payments.length === 0 && <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>No submissions yet</div>}
-        {payments.map(m => (
-          <div key={m.id} className="payment-row">
-            <div>
-              <div className="mr-teams">{m.display_name}</div>
-              <div className="mr-meta">{m.department}</div>
-            </div>
-            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className={`status-badge ${m.payment_status}`}>{m.payment_status}</span>
-              {m.payment_proof && (
-                <a href={m.payment_proof} target="_blank" rel="noreferrer" style={{ fontSize: '.72rem', color: 'var(--green)', fontWeight: '700' }}>
-                  View Screenshot
-                </a>
-              )}
-              {m.payment_status === 'pending' && (
-                <>
-                  <button className="btn-primary" style={{ padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => confirm(m.id, m.display_name)}>Confirm ✅</button>
-                  <button className="btn-outline" style={{ padding: '.35rem .9rem', fontSize: '.72rem', borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => reject(m.id, m.display_name)}>Reject ❌</button>
-                </>
-              )}
-            </div>
+    <div style={styles.card}>
+      {toast && <div style={{ ...styles.toast, ...(toast.bad ? styles.toastBad : {}) }}>{toast.msg}</div>}
+      <div style={styles.cardTitle}>Payment Submissions ({payments.length})</div>
+      {payments.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No submissions yet</div>}
+      {payments.map(m => (
+        <div key={m.id} style={{ ...styles.row, flexWrap: 'wrap', gap: '.5rem', paddingBottom: '.85rem', marginBottom: '.85rem', borderBottom: '1px solid #1E2E20' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.full_name || m.display_name || 'Unknown'}</div>
+            <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{m.matric_number} · {m.department}</div>
+            {m.transaction_id && <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>TXN: {m.transaction_id}</div>}
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ ...styles.badge, background: m.payment_status === 'confirmed' ? 'rgba(0,230,118,.1)' : m.payment_status === 'rejected' ? 'rgba(239,154,154,.1)' : 'rgba(255,215,0,.1)', color: m.payment_status === 'confirmed' ? '#00E676' : m.payment_status === 'rejected' ? '#EF9A9A' : '#FFD700' }}>
+              {m.payment_status}
+            </span>
+            {m.payment_proof && (
+              <a href={m.payment_proof} target="_blank" rel="noreferrer" style={{ fontSize: '.72rem', color: '#00E676', fontWeight: '700' }}>View Proof</a>
+            )}
+            {m.payment_status === 'pending' && (
+              <>
+                <button style={{ ...styles.btn, padding: '.3rem .7rem', fontSize: '.72rem' }} onClick={() => confirm(m.id, m.full_name || m.display_name)}>Confirm ✅</button>
+                <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .7rem', fontSize: '.72rem' }} onClick={() => reject(m.id, m.full_name || m.display_name)}>Reject ❌</button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   )
+}
+
+const styles = {
+  wrap: { padding: '2rem 0' },
+  title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '1.2rem' },
+  tabs: { display: 'flex', gap: '.5rem', marginBottom: '1.2rem', flexWrap: 'wrap' },
+  tab: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.5rem 1rem', fontSize: '.78rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', cursor: 'pointer' },
+  tabActive: { background: 'rgba(0,230,118,.09)', borderColor: '#00E676', color: '#00E676' },
+  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
+  cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
+  form: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem' },
+  input: { padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', width: '100%' },
+  btn: { padding: '.75rem 1rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.82rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
+  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem' },
+  posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
+  badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
+  toast: { position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
+  toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
       }
