@@ -54,17 +54,6 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
         )}
 
         {activePage === 'admin' && manager?.is_admin && <Admin />}
-          <div>
-            <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚡ Dashboard</div>
-
-        {!['home', 'admin'].includes(activePage) && (
-          <div style={{ textAlign: 'center', paddingTop: '4rem' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
-            <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '.5rem' }}>COMING SOON</h2>
-            <p style={{ color: '#5A7A5E', fontSize: '.88rem' }}>This section is being built.</p>
-          </div>
-        )}
-      </div>
-    </div>
+      
   )
 }
