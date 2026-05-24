@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const TABS = ['Players', 'Matches', 'Live Match', 'Payments']
+const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
   const [tab, setTab] = useState('Payments')
+  const [teams, setTeams] = useState([])
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
-  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0 })
+  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
@@ -19,16 +20,19 @@ export default function Admin() {
   useEffect(() => { fetchAll() }, [])
 
   const fetchAll = async () => {
-    setLoading(true)
-    const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from('players').select('*').order('position'),
-      supabase.from('matches').select('*').order('matchday', { ascending: false })
-    ])
-    setPlayers(p || [])
-    setMatches(m || [])
-    setLoading(false)
+  const fetchAll = async () => {
+  setLoading(true)
+  const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
+    supabase.from('teams').select('*').order('name'),
+    supabase.from('players').select('*').order('position'),
+    supabase.from('matches').select('*').order('matchday', { ascending: false })
+  ])
+  setTeams(t || [])
+  setPlayers(p || [])
+  setMatches(m || [])
+  setLoading(false)
   }
-
+    
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
     setTimeout(() => setToast(null), 2500)
@@ -223,6 +227,51 @@ export default function Admin() {
         ))}
       </div>
 
+      {/* TEAMS */}
+{tab === 'Teams' && (
+  <div>
+    <div style={styles.card}>
+      <div style={styles.cardTitle}>All Teams ({teams.length})</div>
+      {teams.map(t => (
+        <div key={t.id} style={{ ...styles.row, justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{t.name}</div>
+            <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{t.short_name}</div>
+          </div>
+          <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
+            {players.filter(p => p.team === t.name).length} players
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ ...styles.card, marginTop: '1rem' }}>
+      <div style={styles.cardTitle}>Players Per Team</div>
+      {teams.map(t => {
+        const teamPlayers = players.filter(p => p.team === t.name)
+        return (
+          <div key={t.id} style={{ marginBottom: '1.2rem', paddingBottom: '1.2rem', borderBottom: '1px solid #1E2E20' }}>
+            <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>
+              {t.name} ({teamPlayers.length})
+            </div>
+            {teamPlayers.length === 0 ? (
+              <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>No players added yet</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
+                {teamPlayers.map(p => (
+                  <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>
+                    {p.position} · {p.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  </div>
+)}
+
       {/* PLAYERS */}
       {tab === 'Players' && (
         <div>
@@ -233,7 +282,10 @@ export default function Admin() {
               <select style={styles.input} value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
                 <option>GK</option><option>DF</option><option>MF</option><option>FW</option>
               </select>
-              <input style={styles.input} placeholder="Team Name" value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })} />
+              <select style={styles.input} value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })}>
+  <option value="">Select Team</option>
+  {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+</select>
               <input style={styles.input} type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
               <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addPlayer}>Add Player</button>
             </div>
