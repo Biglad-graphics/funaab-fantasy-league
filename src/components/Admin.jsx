@@ -173,18 +173,46 @@ export default function Admin() {
   }
 
   const addEvent = async () => {
-    if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
-    const { error } = await supabase.from('match_events').insert({
-      match_id: liveMatch.id,
-      player_id: eventForm.player_id,
-      event_type: eventForm.event_type,
-      minute: eventForm.minute ? parseInt(eventForm.minute) : null
-    })
-    if (error) return showToast('❌ Failed to add event', true)
+  if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
+  
+  const { error } = await supabase.from('match_events').insert({
+    match_id: liveMatch.id,
+    player_id: eventForm.player_id,
+    event_type: eventForm.event_type,
+    minute: eventForm.minute ? parseInt(eventForm.minute) : null
+  })
+  if (error) return showToast('❌ Failed to add event', true)
+
+  // Update score if goal
+  if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
     const player = matchPlayers.find(p => p.id === eventForm.player_id)
-    showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
-    setEventForm({ player_id: '', event_type: 'goal', minute: '' })
+    const isHome = liveMatch.home_team === player?.team
+
+    // Own goal goes to opposite team
+    const homeGoal = eventForm.event_type === 'own_goal' ? !isHome : isHome
+
+    const { data: currentMatch } = await supabase
+      .from('matches')
+      .select('home_score, away_score')
+      .eq('id', liveMatch.id)
+      .single()
+
+    await supabase.from('matches').update({
+      home_score: homeGoal ? (currentMatch.home_score + 1) : currentMatch.home_score,
+      away_score: !homeGoal ? (currentMatch.away_score + 1) : currentMatch.away_score
+    }).eq('id', liveMatch.id)
+
+    setLiveMatch(prev => ({
+      ...prev,
+      home_score: homeGoal ? (prev.home_score || 0) + 1 : (prev.home_score || 0),
+      away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
+    }))
   }
+
+  const player = matchPlayers.find(p => p.id === eventForm.player_id)
+  showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
+  setEventForm({ player_id: '', event_type: 'goal', minute: '' })
+}
 
   const markAllAppearances = async (eventType) => {
     if (!liveMatch || matchPlayers.length === 0) return showToast('⚠ No players loaded', true)
