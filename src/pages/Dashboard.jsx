@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Admin from '../components/Admin.jsx'
+import Home from '../components/Home.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
@@ -32,9 +33,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
       {/* Content */}
       <div style={{ paddingTop: '5rem', padding: '6rem 2rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
-        {activePage === 'home' && (
-          <div>
-            <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚡ Dashboard</div>
+        {activePage === 'home' && <Home manager={manager} />}
             <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '1.5rem' }}>
               Welcome, {manager?.team_name || manager?.full_name}!
             </h1>
