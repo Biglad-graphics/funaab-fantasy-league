@@ -4,6 +4,7 @@ import Home from '../components/Home.jsx'
 import Leaderboard from '../components/Leaderboard.jsx'
 import MyTeam from '../components/MyTeam.jsx'
 import Fixtures from '../components/Fixtures.jsx'
+import Profile from '../components/Profile.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
@@ -39,6 +40,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
         {activePage === 'admin' && manager?.is_admin && <Admin />}
         {activePage === 'myteam' && <MyTeam manager={manager} />}
         {activePage === 'fixtures' && <Fixtures />}
+        {activePage === 'profile' && <Profile manager={manager} onUpdate={refetchManager} onLogout={onLogout} />}
         {!['home', 'admin'].includes(activePage) && (
           <div style={{ textAlign: 'center', paddingTop: '4rem' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
