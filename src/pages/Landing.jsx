@@ -16,7 +16,7 @@ export default function Landing({ setPage }) {
     fetchMatches()
 
     const channel = supabase
-      .channel('matches')
+      .channel('landing-matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchMatches)
       .subscribe()
 
@@ -71,8 +71,8 @@ export default function Landing({ setPage }) {
 
       {/* Scoreboard */}
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '3rem 2rem' }}>
-        <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>
-          <span style={{ display: 'inline-block', width: '7px', height: '7px', background: '#00E676', borderRadius: '50%', marginRight: '.4rem' }} />
+        <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+          <span style={{ display: 'inline-block', width: '7px', height: '7px', background: '#00E676', borderRadius: '50%' }} />
           Live Scoreboard
         </div>
         <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '1.5rem' }}>Match Results</h2>
@@ -80,15 +80,22 @@ export default function Landing({ setPage }) {
           {matches.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No matches yet this season</div>
           ) : matches.map(m => (
-            <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 100px', alignItems: 'center', padding: '.9rem 1.4rem', borderBottom: '1px solid rgba(30,46,32,.5)', gap: '1rem' }}>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#5A7A5E' }}>GW{m.matchday}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team}</span>
-                <span style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '1px', padding: '.2rem .6rem', borderRadius: '100px', background: m.status === 'live' ? 'rgba(0,230,118,.1)' : 'rgba(90,122,94,.1)', color: m.status === 'live' ? '#00E676' : '#5A7A5E' }}>
-                  {m.status === 'live' ? '🔴 LIVE' : m.status === 'completed' ? 'FT' : 'vs'}
+            <div key={m.id} style={{ padding: '.9rem 1.4rem', borderBottom: '1px solid rgba(30,46,32,.5)', display: 'grid', gridTemplateColumns: '60px 1fr 100px', alignItems: 'center', gap: '1rem' }}>
+              {/* Status */}
+              <span style={{ fontSize: '.6rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', padding: '.2rem .5rem', borderRadius: '100px', textAlign: 'center', background: m.status === 'live' ? 'rgba(0,230,118,.1)' : m.status === 'completed' ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#5A7A5E' : '#64B5F6' }}>
+                {m.status === 'live' ? '🔴 Live' : m.status === 'completed' ? 'FT' : 'Soon'}
+              </span>
+
+              {/* Match + Score */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.8rem', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: '700', fontSize: '.88rem', textAlign: 'right', flex: 1 }}>{m.home_team}</span>
+                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#E8F5E9' : '#5A7A5E', flexShrink: 0, minWidth: '50px', textAlign: 'center' }}>
+                  {m.status === 'scheduled' ? 'vs' : `${m.home_score ?? 0} — ${m.away_score ?? 0}`}
                 </span>
-                <span style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.away_team}</span>
+                <span style={{ fontWeight: '700', fontSize: '.88rem', flex: 1 }}>{m.away_team}</span>
               </div>
+
+              {/* Venue */}
               <div style={{ fontSize: '.72rem', color: '#5A7A5E', textAlign: 'right' }}>{m.venue || 'TBD'}</div>
             </div>
           ))}
@@ -101,4 +108,4 @@ export default function Landing({ setPage }) {
       </div>
     </div>
   )
-        }
+      }
