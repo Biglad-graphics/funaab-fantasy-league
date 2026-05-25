@@ -70,7 +70,9 @@ export default function Fixtures() {
                 {/* Match */}
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '.8rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: '700', fontSize: '.9rem', textAlign: 'right', flex: 1 }}>{m.home_team}</span>
-                  <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', color: '#5A7A5E', flexShrink: 0 }}>vs</span>
+                  <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#E8F5E9' : '#5A7A5E', flexShrink: 0 }}>
+                  {m.status === 'scheduled' ? 'vs' : `${m.home_score ?? 0} — ${m.away_score ?? 0}`}
+                  </span>
                   <span style={{ fontWeight: '700', fontSize: '.9rem', flex: 1 }}>{m.away_team}</span>
                 </div>
 
