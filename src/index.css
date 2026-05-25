@@ -589,3 +589,14 @@ body[data-theme="dark"] {
 .status-badge.pending { background: rgba(255,215,0,.1); color: var(--gold); }
 .status-badge.confirmed { background: rgba(0,230,118,.1); color: var(--green); }
 .status-badge.rejected { background: rgba(239,154,154,.1); color: var(--red); }
+
+/* MOBILE NAV */
+@media (max-width: 768px) {
+  .desktop-nav { display: none !important; }
+  .hamburger { display: block !important; }
+}
+
+@media (min-width: 769px) {
+  .bottom-nav { display: none !important; }
+  .hamburger { display: none !important; }
+}
