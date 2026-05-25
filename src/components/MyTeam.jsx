@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function MyTeam({ manager }) {
-  const [view, setView] = useState('squad') // squad | pick
+  const [view, setView] = useState('squad')
   const [squad, setSquad] = useState([])
   const [players, setPlayers] = useState([])
   const [selected, setSelected] = useState([])
@@ -37,10 +37,7 @@ export default function MyTeam({ manager }) {
 
   const togglePlayer = (player) => {
     const inSquad = selected.find(p => p.id === player.id)
-    if (inSquad) {
-      setSelected(prev => prev.filter(p => p.id !== player.id))
-      return
-    }
+    if (inSquad) { setSelected(prev => prev.filter(p => p.id !== player.id)); return }
     if (selected.length >= 15) return showToast('⚠ Squad full — 15/15', true)
     if (remaining < player.price) return showToast('⚠ Not enough budget', true)
     const teamCount = selected.filter(p => p.team === player.team).length
@@ -68,7 +65,6 @@ export default function MyTeam({ manager }) {
     const startingCount = selected.filter(p => p.is_starting).length
     if (startingCount !== 11) return showToast(`⚠ Select 11 starters (${startingCount} selected)`, true)
     if (!selected.find(p => p.is_captain)) return showToast('⚠ Set a captain', true)
-
     setSaving(true)
     await supabase.from('squads').delete().eq('manager_id', manager.id)
     const rows = selected.map((p, i) => ({
@@ -86,6 +82,18 @@ export default function MyTeam({ manager }) {
     fetchData()
   }
 
+  const activateWildcard = async () => {
+    if (manager?.wildcard_used) return
+    if (!confirm('Use your Wildcard? This allows unlimited free transfers this week. You can only use it once per season.')) return
+    const { error } = await supabase
+      .from('managers')
+      .update({ wildcard_used: true, free_transfers: 15 })
+      .eq('id', manager.id)
+    if (error) return showToast('❌ Failed to activate wildcard', true)
+    showToast('🃏 Wildcard activated! Make unlimited transfers!')
+    setView('pick')
+  }
+
   const filtered = players.filter(p =>
     (posFilter === 'ALL' || p.position === posFilter) &&
     (p.name.toLowerCase().includes(search.toLowerCase()) || p.team.toLowerCase().includes(search.toLowerCase()))
@@ -97,15 +105,24 @@ export default function MyTeam({ manager }) {
 
   return (
     <div>
-      {toast && <div style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: `1px solid ${toast.bad ? '#EF9A9A' : '#00E676'}`, color: toast.bad ? '#EF9A9A' : '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: `1px solid ${toast.bad ? '#EF9A9A' : '#00E676'}`, color: toast.bad ? '#EF9A9A' : '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999, whiteSpace: 'nowrap' }}>{toast.msg}</div>}
 
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚽ Squad</div>
       <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1rem' }}>My Team</h1>
 
       {/* View Toggle */}
-      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <button onClick={() => setView('squad')} style={{ ...styles.tab, ...(view === 'squad' ? styles.tabActive : {}) }}>My Squad</button>
         <button onClick={() => setView('pick')} style={{ ...styles.tab, ...(view === 'pick' ? styles.tabActive : {}) }}>Pick Players</button>
+        {!manager?.wildcard_used ? (
+          <button onClick={activateWildcard} style={{ ...styles.tab, background: 'rgba(255,215,0,.08)', borderColor: '#FFD700', color: '#FFD700' }}>
+            🃏 Wildcard
+          </button>
+        ) : (
+          <div style={{ fontSize: '.72rem', color: '#5A7A5E', padding: '.5rem .8rem', border: '1px solid #1E2E20', borderRadius: '8px' }}>
+            🃏 Wildcard Used
+          </div>
+        )}
       </div>
 
       {/* SQUAD VIEW */}
@@ -119,19 +136,17 @@ export default function MyTeam({ manager }) {
             </div>
           ) : (
             <>
-              {/* Budget bar */}
               <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                 <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
                 <div><div style={styles.miniLabel}>Spent</div><div style={{ ...styles.miniVal, color: '#EF9A9A' }}>₦{spent.toFixed(1)}M</div></div>
                 <div><div style={styles.miniLabel}>Remaining</div><div style={{ ...styles.miniVal, color: '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
               </div>
 
-              {/* Starting XI */}
               <div style={styles.card}>
                 <div style={styles.cardTitle}>⭐ Starting XI</div>
                 {selected.filter(p => p.is_starting).map(p => (
                   <div key={p.id} style={styles.playerRow}>
-                    <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
+                    <div style={{ ...styles.posBadge, background: posColor(p.position).bg, color: posColor(p.position).color }}>{p.position}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name} {p.is_captain && '⭐'}</div>
                       <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team} · ₦{p.price}M</div>
@@ -144,12 +159,11 @@ export default function MyTeam({ manager }) {
                 ))}
               </div>
 
-              {/* Bench */}
               <div style={{ ...styles.card, marginTop: '1rem' }}>
                 <div style={styles.cardTitle}>🪑 Bench</div>
                 {selected.filter(p => !p.is_starting).map(p => (
                   <div key={p.id} style={{ ...styles.playerRow, opacity: .7 }}>
-                    <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
+                    <div style={{ ...styles.posBadge, background: posColor(p.position).bg, color: posColor(p.position).color }}>{p.position}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name}</div>
                       <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team} · ₦{p.price}M</div>
@@ -173,76 +187,58 @@ export default function MyTeam({ manager }) {
 
       {/* PICK VIEW */}
       {view === 'pick' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1.2rem' }}>
-          {/* Player Pool */}
-          <div style={styles.card}>
-            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.8rem', flexWrap: 'wrap' }}>
-              <input
-                style={{ flex: 1, padding: '.6rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.82rem', outline: 'none', minWidth: '150px' }}
-                placeholder="Search players..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-              {['ALL', 'GK', 'DF', 'MF', 'FW'].map(pos => (
-                <button key={pos} onClick={() => setPosFilter(pos)} style={{ ...styles.smBtn, ...(posFilter === pos ? { background: 'rgba(0,230,118,.1)', borderColor: '#00E676', color: '#00E676' } : { borderColor: '#1E2E20', color: '#5A7A5E' }) }}>{pos}</button>
-              ))}
-            </div>
-            <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-              {filtered.map(p => {
-                const inSquad = selected.find(s => s.id === p.id)
-                const pc = posColor(p.position)
-                return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '.7rem', padding: '.65rem 0', borderBottom: '1px solid rgba(30,46,32,.4)' }}>
-                    <div style={{ ...styles.posBadge, ...pc }}>{p.position}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '.68rem', color: '#5A7A5E' }}>{p.team}</div>
-                    </div>
-                    <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.goals ?? 0}⚽</div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                    <button
-                      onClick={() => togglePlayer(p)}
-                      style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1px solid ${inSquad ? '#EF9A9A' : '#00E676'}`, background: inSquad ? 'rgba(239,154,154,.1)' : 'transparent', color: inSquad ? '#EF9A9A' : '#00E676', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      {inSquad ? '−' : '+'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+        <div>
+          {/* Budget bar */}
+          <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
+            <div><div style={styles.miniLabel}>Remaining</div><div style={{ ...styles.miniVal, color: remaining < 0 ? '#EF9A9A' : '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
           </div>
 
-          {/* My Selection */}
-          <div>
-            <div style={styles.card}>
-              <div style={styles.cardTitle}>My Selection</div>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '.8rem', flexWrap: 'wrap' }}>
-                <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
-                <div><div style={styles.miniLabel}>Left</div><div style={{ ...styles.miniVal, color: remaining < 0 ? '#EF9A9A' : '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
-              </div>
-              {['GK', 'DF', 'MF', 'FW'].map(pos => {
-                const posPlayers = selected.filter(p => p.position === pos)
-                const max = { GK: 2, DF: 5, MF: 5, FW: 3 }[pos]
-                const pc = posColor(pos)
-                return (
-                  <div key={pos} style={{ marginBottom: '.8rem' }}>
-                    <div style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', color: pc.color, marginBottom: '.3rem' }}>{pos} ({posPlayers.length}/{max})</div>
-                    {posPlayers.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem 0', borderBottom: '1px solid rgba(30,46,32,.3)' }}>
-                        <span style={{ fontSize: '.78rem', flex: 1 }}>{p.name}</span>
-                        <button onClick={() => togglePlayer(p)} style={{ background: 'none', border: 'none', color: '#EF9A9A', cursor: 'pointer', fontSize: '.85rem' }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-              {selected.length === 15 && (
-                <button style={{ ...styles.btn, width: '100%', marginTop: '.5rem' }} onClick={saveSquad} disabled={saving}>
-                  {saving ? 'SAVING...' : 'SAVE SQUAD'}
-                </button>
-              )}
-            </div>
+          {/* Search & Filter */}
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.8rem', flexWrap: 'wrap' }}>
+            <input
+              style={{ flex: 1, padding: '.6rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#111A13', color: '#E8F5E9', fontSize: '.82rem', outline: 'none', minWidth: '150px' }}
+              placeholder="Search players..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {['ALL', 'GK', 'DF', 'MF', 'FW'].map(pos => (
+              <button key={pos} onClick={() => setPosFilter(pos)} style={{ ...styles.smBtn, ...(posFilter === pos ? { background: 'rgba(0,230,118,.1)', borderColor: '#00E676', color: '#00E676' } : { borderColor: '#1E2E20', color: '#5A7A5E' }) }}>{pos}</button>
+            ))}
           </div>
+
+          {/* Player List */}
+          <div style={styles.card}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No players found</div>
+            ) : filtered.map(p => {
+              const inSquad = selected.find(s => s.id === p.id)
+              const pc = posColor(p.position)
+              return (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '.7rem', padding: '.65rem 0', borderBottom: '1px solid rgba(30,46,32,.4)' }}>
+                  <div style={{ ...styles.posBadge, background: pc.bg, color: pc.color }}>{p.position}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{p.name}</div>
+                    <div style={{ fontSize: '.68rem', color: '#5A7A5E' }}>{p.team}</div>
+                  </div>
+                  <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.goals ?? 0}⚽</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
+                  <button
+                    onClick={() => togglePlayer(p)}
+                    style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1px solid ${inSquad ? '#EF9A9A' : '#00E676'}`, background: inSquad ? 'rgba(239,154,154,.1)' : 'transparent', color: inSquad ? '#EF9A9A' : '#00E676', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  >
+                    {inSquad ? '−' : '+'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {selected.length === 15 && (
+            <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
+              {saving ? 'SAVING...' : 'SAVE SQUAD'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -261,4 +257,4 @@ const styles = {
   smBtn: { padding: '.25rem .6rem', borderRadius: '5px', background: 'transparent', fontSize: '.68rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '.5px' },
   miniLabel: { fontSize: '.62rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E' },
   miniVal: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', color: '#E8F5E9' }
-}
+  }
