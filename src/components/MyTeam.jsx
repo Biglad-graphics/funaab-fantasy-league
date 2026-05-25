@@ -11,18 +11,22 @@ export default function MyTeam({ manager }) {
   const [search, setSearch] = useState('')
   const [posFilter, setPosFilter] = useState('ALL')
   const [toast, setToast] = useState(null)
+  const [transferWindow, setTransferWindow] = useState('open')
 
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
     setLoading(true)
-    const [{ data: squadData }, { data: playerData }] = await Promise.all([
+    const [{ data: squadData }, { data: playerData }, { data: settings }] = await Promise.all([
       supabase.from('squads').select('*, players(*)').eq('manager_id', manager.id),
-      supabase.from('players').select('*').eq('is_active', true).order('position')
+      supabase.from('players').select('*').eq('is_active', true).order('position'),
+      supabase.from('settings').select('*')
     ])
     setSquad(squadData || [])
     setSelected((squadData || []).map(s => ({ ...s.players, is_captain: s.is_captain, is_starting: s.is_starting, squad_id: s.id })))
     setPlayers(playerData || [])
+    const windowSetting = settings?.find(x => x.id === 'transfer_window')
+    setTransferWindow(windowSetting?.value || 'open')
     setLoading(false)
   }
 
@@ -36,6 +40,7 @@ export default function MyTeam({ manager }) {
   const remaining = budget - spent
 
   const togglePlayer = (player) => {
+    if (transferWindow === 'closed') return showToast('🔒 Transfer window is closed', true)
     const inSquad = selected.find(p => p.id === player.id)
     if (inSquad) { setSelected(prev => prev.filter(p => p.id !== player.id)); return }
     if (selected.length >= 15) return showToast('⚠ Squad full — 15/15', true)
@@ -110,10 +115,26 @@ export default function MyTeam({ manager }) {
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚽ Squad</div>
       <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1rem' }}>My Team</h1>
 
+      {/* Transfer Window Banner */}
+      {transferWindow === 'closed' && (
+        <div style={{ background: 'rgba(239,154,154,.05)', border: '1px solid rgba(239,154,154,.2)', borderRadius: '10px', padding: '1rem 1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+          <span style={{ fontSize: '1.2rem' }}>🔒</span>
+          <div>
+            <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#EF9A9A' }}>Transfer Window Closed</div>
+            <div style={{ fontSize: '.75rem', color: '#5A7A5E', marginTop: '.1rem' }}>You cannot make transfers until the window reopens.</div>
+          </div>
+        </div>
+      )}
+
       {/* View Toggle */}
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <button onClick={() => setView('squad')} style={{ ...styles.tab, ...(view === 'squad' ? styles.tabActive : {}) }}>My Squad</button>
-        <button onClick={() => setView('pick')} style={{ ...styles.tab, ...(view === 'pick' ? styles.tabActive : {}) }}>Pick Players</button>
+        <button
+          onClick={() => { if (transferWindow === 'closed') return showToast('🔒 Transfer window is closed', true); setView('pick') }}
+          style={{ ...styles.tab, ...(view === 'pick' ? styles.tabActive : {}), opacity: transferWindow === 'closed' ? .5 : 1 }}
+        >
+          Pick Players
+        </button>
         {!manager?.wildcard_used ? (
           <button onClick={activateWildcard} style={{ ...styles.tab, background: 'rgba(255,215,0,.08)', borderColor: '#FFD700', color: '#FFD700' }}>
             🃏 Wildcard
@@ -188,13 +209,11 @@ export default function MyTeam({ manager }) {
       {/* PICK VIEW */}
       {view === 'pick' && (
         <div>
-          {/* Budget bar */}
           <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
             <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
             <div><div style={styles.miniLabel}>Remaining</div><div style={{ ...styles.miniVal, color: remaining < 0 ? '#EF9A9A' : '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
           </div>
 
-          {/* Search & Filter */}
           <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.8rem', flexWrap: 'wrap' }}>
             <input
               style={{ flex: 1, padding: '.6rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#111A13', color: '#E8F5E9', fontSize: '.82rem', outline: 'none', minWidth: '150px' }}
@@ -207,7 +226,6 @@ export default function MyTeam({ manager }) {
             ))}
           </div>
 
-          {/* Player List */}
           <div style={styles.card}>
             {filtered.length === 0 ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No players found</div>
@@ -257,4 +275,4 @@ const styles = {
   smBtn: { padding: '.25rem .6rem', borderRadius: '5px', background: 'transparent', fontSize: '.68rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '.5px' },
   miniLabel: { fontSize: '.62rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E' },
   miniVal: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', color: '#E8F5E9' }
-  }
+         }
