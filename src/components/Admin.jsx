@@ -11,6 +11,7 @@ export default function Admin() {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
+  const [transferWindow, setTransferWindow] = useState('open')
   const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
   const [liveMatch, setLiveMatch] = useState(null)
@@ -22,14 +23,17 @@ export default function Admin() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
+    const [{ data: t }, { data: p }, { data: m }, { data: s }] = await Promise.all([
       supabase.from('teams').select('*').order('name'),
       supabase.from('players').select('*').order('position'),
-      supabase.from('matches').select('*').order('matchday', { ascending: false })
+      supabase.from('matches').select('*').order('matchday', { ascending: false }),
+      supabase.from('settings').select('*')
     ])
     setTeams(t || [])
     setPlayers(p || [])
     setMatches(m || [])
+    const windowSetting = s?.find(x => x.id === 'transfer_window')
+    setTransferWindow(windowSetting?.value || 'open')
     setLoading(false)
   }
 
@@ -45,6 +49,13 @@ export default function Admin() {
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const toggleTransferWindow = async () => {
+    const newValue = transferWindow === 'open' ? 'closed' : 'open'
+    await supabase.from('settings').update({ value: newValue }).eq('id', 'transfer_window')
+    setTransferWindow(newValue)
+    showToast(`Transfer window ${newValue === 'open' ? '✅ Opened' : '🔒 Closed'}`)
   }
 
   const addPlayer = async () => {
@@ -110,7 +121,6 @@ export default function Admin() {
       playerPoints[event.player_id] += pts
     }
 
-    // Clean sheet check
     const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
     if (goalsScored === 0) {
       for (const player of matchPlayers) {
@@ -124,7 +134,6 @@ export default function Admin() {
       }
     }
 
-    // Get all squads
     const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
     const managerSquads = {}
     for (const sq of allSquads || []) {
@@ -132,7 +141,6 @@ export default function Admin() {
       managerSquads[sq.manager_id].push(sq)
     }
 
-    // Calculate & update manager points
     for (const [managerId, squad] of Object.entries(managerSquads)) {
       let totalMatchPoints = 0
       for (const sq of squad) {
@@ -153,7 +161,6 @@ export default function Admin() {
       await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
     }
 
-    // Update player stats
     for (const [playerId] of Object.entries(playerPoints)) {
       const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
       const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
@@ -173,46 +180,35 @@ export default function Admin() {
   }
 
   const addEvent = async () => {
-  if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
-  
-  const { error } = await supabase.from('match_events').insert({
-    match_id: liveMatch.id,
-    player_id: eventForm.player_id,
-    event_type: eventForm.event_type,
-    minute: eventForm.minute ? parseInt(eventForm.minute) : null
-  })
-  if (error) return showToast('❌ Failed to add event', true)
+    if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
+    const { error } = await supabase.from('match_events').insert({
+      match_id: liveMatch.id,
+      player_id: eventForm.player_id,
+      event_type: eventForm.event_type,
+      minute: eventForm.minute ? parseInt(eventForm.minute) : null
+    })
+    if (error) return showToast('❌ Failed to add event', true)
 
-  // Update score if goal
-  if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
+    if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
+      const player = matchPlayers.find(p => p.id === eventForm.player_id)
+      const isHome = liveMatch.home_team === player?.team
+      const homeGoal = eventForm.event_type === 'own_goal' ? !isHome : isHome
+      const { data: currentMatch } = await supabase.from('matches').select('home_score, away_score').eq('id', liveMatch.id).single()
+      await supabase.from('matches').update({
+        home_score: homeGoal ? (currentMatch.home_score + 1) : currentMatch.home_score,
+        away_score: !homeGoal ? (currentMatch.away_score + 1) : currentMatch.away_score
+      }).eq('id', liveMatch.id)
+      setLiveMatch(prev => ({
+        ...prev,
+        home_score: homeGoal ? (prev.home_score || 0) + 1 : (prev.home_score || 0),
+        away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
+      }))
+    }
+
     const player = matchPlayers.find(p => p.id === eventForm.player_id)
-    const isHome = liveMatch.home_team === player?.team
-
-    // Own goal goes to opposite team
-    const homeGoal = eventForm.event_type === 'own_goal' ? !isHome : isHome
-
-    const { data: currentMatch } = await supabase
-      .from('matches')
-      .select('home_score, away_score')
-      .eq('id', liveMatch.id)
-      .single()
-
-    await supabase.from('matches').update({
-      home_score: homeGoal ? (currentMatch.home_score + 1) : currentMatch.home_score,
-      away_score: !homeGoal ? (currentMatch.away_score + 1) : currentMatch.away_score
-    }).eq('id', liveMatch.id)
-
-    setLiveMatch(prev => ({
-      ...prev,
-      home_score: homeGoal ? (prev.home_score || 0) + 1 : (prev.home_score || 0),
-      away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
-    }))
+    showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
+    setEventForm({ player_id: '', event_type: 'goal', minute: '' })
   }
-
-  const player = matchPlayers.find(p => p.id === eventForm.player_id)
-  showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
-  setEventForm({ player_id: '', event_type: 'goal', minute: '' })
-}
 
   const markAllAppearances = async (eventType) => {
     if (!liveMatch || matchPlayers.length === 0) return showToast('⚠ No players loaded', true)
@@ -247,6 +243,24 @@ export default function Admin() {
       {/* TEAMS */}
       {tab === 'Teams' && (
         <div>
+          {/* Transfer Window Toggle */}
+          <div style={{ ...styles.card, marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: transferWindow === 'open' ? 'rgba(0,230,118,.04)' : 'rgba(239,154,154,.04)', borderColor: transferWindow === 'open' ? 'rgba(0,230,118,.2)' : 'rgba(239,154,154,.2)' }}>
+            <div>
+              <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem' }}>Transfer Window</div>
+              <div style={{ fontSize: '.78rem', color: '#5A7A5E' }}>
+                {transferWindow === 'open' ? 'Managers can currently make transfers' : 'Transfers are locked for all managers'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}>
+              <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: transferWindow === 'open' ? 'rgba(0,230,118,.1)' : 'rgba(239,154,154,.1)', color: transferWindow === 'open' ? '#00E676' : '#EF9A9A' }}>
+                {transferWindow === 'open' ? '✅ OPEN' : '🔒 CLOSED'}
+              </span>
+              <button style={{ ...styles.btn, background: transferWindow === 'open' ? 'rgba(239,154,154,.1)' : 'rgba(0,230,118,.1)', color: transferWindow === 'open' ? '#EF9A9A' : '#00E676', border: `1px solid ${transferWindow === 'open' ? '#EF9A9A' : '#00E676'}` }} onClick={toggleTransferWindow}>
+                {transferWindow === 'open' ? 'Close Window' : 'Open Window'}
+              </button>
+            </div>
+          </div>
+
           <div style={styles.card}>
             <div style={styles.cardTitle}>All Teams ({teams.length})</div>
             {teams.map(t => (
@@ -381,21 +395,16 @@ export default function Admin() {
                     <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
                     <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>
                       {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
-                       </div>
+                    </div>
                     <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
                   </div>
                   <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match & Calculate Points</button>
                 </div>
               </div>
 
-              {/* Bulk appearance buttons */}
               <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>
-                  ▶ Mark All Started
-                </button>
-                <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>
-                  ✅ Mark All Played 90
-                </button>
+                <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>▶ Mark All Started</button>
+                <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>✅ Mark All Played 90</button>
               </div>
 
               <div style={styles.card}>
@@ -465,7 +474,7 @@ function PaymentsTab() {
 
   return (
     <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
-      {toast && <div style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
       <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Payment Submissions ({payments.length})</div>
       {payments.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No submissions yet</div>}
       {payments.map(m => (
@@ -509,6 +518,6 @@ const styles = {
   row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
   posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
   badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
-  toast: { position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
+  toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-              }
+}
