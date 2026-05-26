@@ -31,8 +31,8 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      -- name: Deploy
-               run: |
+      - name: Deploy
+        run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           npm install -g gh-pages
