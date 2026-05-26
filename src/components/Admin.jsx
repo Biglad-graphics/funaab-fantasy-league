@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments']
+const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
@@ -435,6 +435,9 @@ export default function Admin() {
 
       {/* PAYMENTS */}
       {tab === 'Payments' && <PaymentsTab />}
+
+      {/* ANNOUNCEMENTS */}
+      {tab === 'Announcements' && <AnnouncementsTab />}
     </div>
   )
 }
@@ -521,3 +524,106 @@ const styles = {
   toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
 }
+
+function AnnouncementsTab() {
+  const [announcements, setAnnouncements] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState(null)
+  const [form, setForm] = useState({ title: '', body: '', is_pinned: false })
+
+  useEffect(() => { fetchAnnouncements() }, [])
+
+  const fetchAnnouncements = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+    setAnnouncements(data || [])
+    setLoading(false)
+  }
+
+  const showToast = (msg, bad = false) => {
+    setToast({ msg, bad })
+    setTimeout(() => setToast(null), 2500)
+  }
+
+  const addAnnouncement = async () => {
+    if (!form.title || !form.body) return showToast('⚠ Fill all fields', true)
+    const { error } = await supabase.from('announcements').insert(form)
+    if (error) return showToast('❌ Failed to post', true)
+    showToast('✅ Announcement posted!')
+    setForm({ title: '', body: '', is_pinned: false })
+    fetchAnnouncements()
+  }
+
+  const deleteAnnouncement = async (id) => {
+    if (!confirm('Delete this announcement?')) return
+    await supabase.from('announcements').delete().eq('id', id)
+    showToast('Announcement deleted')
+    fetchAnnouncements()
+  }
+
+  const togglePin = async (id, pinned) => {
+    await supabase.from('announcements').update({ is_pinned: !pinned }).eq('id', id)
+    fetchAnnouncements()
+  }
+
+  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
+
+  return (
+    <div>
+      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+
+      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1rem' }}>
+        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Post Announcement</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
+          <input
+            style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none' }}
+            placeholder="Title"
+            value={form.title}
+            onChange={e => setForm({ ...form, title: e.target.value })}
+          />
+          <textarea
+            style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Message body..."
+            value={form.body}
+            onChange={e => setForm({ ...form, body: e.target.value })}
+          />
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', color: '#5A7A5E', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_pinned} onChange={e => setForm({ ...form, is_pinned: e.target.checked })} />
+            📌 Pin this announcement
+          </label>
+          <button style={{ padding: '.8rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' }} onClick={addAnnouncement}>
+            POST ANNOUNCEMENT
+          </button>
+        </div>
+      </div>
+
+      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
+        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>All Announcements ({announcements.length})</div>
+        {announcements.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No announcements yet</div>}
+        {announcements.map(a => (
+          <div key={a.id} style={{ padding: '.85rem 0', borderBottom: '1px solid #1E2E20' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{a.is_pinned && '📌 '}{a.title}</div>
+                <div style={{ fontSize: '.75rem', color: '#5A7A5E', marginTop: '.3rem' }}>{a.body}</div>
+                <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>{new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+              </div>
+              <div style={{ display: 'flex', gap: '.4rem' }}>
+                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: a.is_pinned ? 'rgba(255,215,0,.1)' : 'transparent', border: '1px solid #FFD700', color: '#FFD700', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => togglePin(a.id, a.is_pinned)}>
+                  {a.is_pinned ? 'Unpin' : 'Pin'}
+                </button>
+                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => deleteAnnouncement(a.id)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+      }
