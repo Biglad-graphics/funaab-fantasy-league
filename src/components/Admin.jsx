@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements', 'Season']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
-
 export default function Admin() {
   const [tab, setTab] = useState('Teams')
   const [teams, setTeams] = useState([])
@@ -96,15 +95,12 @@ export default function Admin() {
   const endMatch = async () => {
     if (!liveMatch) return
     showToast('⏳ Calculating points...')
-
     const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
-
     const pointsMap = {
       goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
       assist: 3, started: 1, played_90: 2,
       yellow: -1, red: -3, own_goal: -3, penalty_missed: -2
     }
-
     const playerPoints = {}
     for (const event of events || []) {
       if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
@@ -121,7 +117,6 @@ export default function Admin() {
       else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
       playerPoints[event.player_id] += pts
     }
-
     const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
     if (goalsScored === 0) {
       for (const player of matchPlayers) {
@@ -134,14 +129,12 @@ export default function Admin() {
         }
       }
     }
-
     const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
     const managerSquads = {}
     for (const sq of allSquads || []) {
       if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
       managerSquads[sq.manager_id].push(sq)
     }
-
     for (const [managerId, squad] of Object.entries(managerSquads)) {
       let totalMatchPoints = 0
       for (const sq of squad) {
@@ -161,7 +154,6 @@ export default function Admin() {
       await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
       await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
     }
-
     for (const [playerId] of Object.entries(playerPoints)) {
       const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
       const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
@@ -173,7 +165,6 @@ export default function Admin() {
         }).eq('id', playerId)
       }
     }
-
     await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
     showToast('✅ Points calculated & match ended!')
     setLiveMatch(null)
@@ -189,7 +180,6 @@ export default function Admin() {
       minute: eventForm.minute ? parseInt(eventForm.minute) : null
     })
     if (error) return showToast('❌ Failed to add event', true)
-
     if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
       const player = matchPlayers.find(p => p.id === eventForm.player_id)
       const isHome = liveMatch.home_team === player?.team
@@ -205,7 +195,6 @@ export default function Admin() {
         away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
       }))
     }
-
     const player = matchPlayers.find(p => p.id === eventForm.player_id)
     showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
     setEventForm({ player_id: '', event_type: 'goal', minute: '' })
@@ -229,28 +218,22 @@ export default function Admin() {
   return (
     <div style={styles.wrap}>
       {toast && <div style={{ ...styles.toast, ...(toast.bad ? styles.toastBad : {}) }}>{toast.msg}</div>}
-
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>🔐 Admin</div>
       <h2 style={styles.title}>Control Center</h2>
-
       <div style={styles.tabs}>
         {TABS.map(t => (
           <button key={t} style={{ ...styles.tab, ...(tab === t ? styles.tabActive : {}) }} onClick={() => setTab(t)}>
-            {t === 'Teams' ? '🏟 ' : t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : '💳 '}{t}
+            {t === 'Teams' ? '🏟 ' : t === 'Players' ? '👤 ' : t === 'Matches' ? '📅 ' : t === 'Live Match' ? '🔴 ' : t === 'Season' ? '🏆 ' : '💳 '}{t}
           </button>
         ))}
       </div>
 
-      {/* TEAMS */}
       {tab === 'Teams' && (
         <div>
-          {/* Transfer Window Toggle */}
           <div style={{ ...styles.card, marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: transferWindow === 'open' ? 'rgba(0,230,118,.04)' : 'rgba(239,154,154,.04)', borderColor: transferWindow === 'open' ? 'rgba(0,230,118,.2)' : 'rgba(239,154,154,.2)' }}>
             <div>
               <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem' }}>Transfer Window</div>
-              <div style={{ fontSize: '.78rem', color: '#5A7A5E' }}>
-                {transferWindow === 'open' ? 'Managers can currently make transfers' : 'Transfers are locked for all managers'}
-              </div>
+              <div style={{ fontSize: '.78rem', color: '#5A7A5E' }}>{transferWindow === 'open' ? 'Managers can currently make transfers' : 'Transfers are locked for all managers'}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}>
               <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: transferWindow === 'open' ? 'rgba(0,230,118,.1)' : 'rgba(239,154,154,.1)', color: transferWindow === 'open' ? '#00E676' : '#EF9A9A' }}>
@@ -261,7 +244,6 @@ export default function Admin() {
               </button>
             </div>
           </div>
-
           <div style={styles.card}>
             <div style={styles.cardTitle}>All Teams ({teams.length})</div>
             {teams.map(t => (
@@ -270,30 +252,23 @@ export default function Admin() {
                   <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{t.name}</div>
                   <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{t.short_name}</div>
                 </div>
-                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
-                  {players.filter(p => p.team === t.name).length} players
-                </div>
+                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>{players.filter(p => p.team === t.name).length} players</div>
               </div>
             ))}
           </div>
-
           <div style={{ ...styles.card, marginTop: '1rem' }}>
             <div style={styles.cardTitle}>Players Per Team</div>
             {teams.map(t => {
               const teamPlayers = players.filter(p => p.team === t.name)
               return (
                 <div key={t.id} style={{ marginBottom: '1.2rem', paddingBottom: '1.2rem', borderBottom: '1px solid #1E2E20' }}>
-                  <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>
-                    {t.name} ({teamPlayers.length})
-                  </div>
+                  <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>{t.name} ({teamPlayers.length})</div>
                   {teamPlayers.length === 0 ? (
                     <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>No players added yet</div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
                       {teamPlayers.map(p => (
-                        <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>
-                          {p.position} · {p.name}
-                        </span>
+                        <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>{p.position} · {p.name}</span>
                       ))}
                     </div>
                   )}
@@ -304,7 +279,6 @@ export default function Admin() {
         </div>
       )}
 
-      {/* PLAYERS */}
       {tab === 'Players' && (
         <div>
           <div style={styles.card}>
@@ -341,7 +315,6 @@ export default function Admin() {
         </div>
       )}
 
-      {/* MATCHES */}
       {tab === 'Matches' && (
         <div>
           <div style={styles.card}>
@@ -380,7 +353,6 @@ export default function Admin() {
         </div>
       )}
 
-      {/* LIVE MATCH */}
       {tab === 'Live Match' && (
         <div>
           {!liveMatch ? (
@@ -402,12 +374,10 @@ export default function Admin() {
                   <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match & Calculate Points</button>
                 </div>
               </div>
-
               <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                 <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>▶ Mark All Started</button>
                 <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>✅ Mark All Played 90</button>
               </div>
-
               <div style={styles.card}>
                 <div style={styles.cardTitle}>Add Match Event</div>
                 <div style={styles.form}>
@@ -434,17 +404,12 @@ export default function Admin() {
         </div>
       )}
 
-      {/* PAYMENTS */}
       {tab === 'Payments' && <PaymentsTab />}
-
-      {/* ANNOUNCEMENTS */}
       {tab === 'Announcements' && <AnnouncementsTab />}
+      {tab === 'Season' && <SeasonTab />}
     </div>
   )
 }
-
-{/* SEASON */}
-{tab === 'Season' && <SeasonTab />}
 
 function PaymentsTab() {
   const [payments, setPayments] = useState([])
@@ -511,24 +476,6 @@ function PaymentsTab() {
   )
 }
 
-const styles = {
-  wrap: { padding: '2rem 0' },
-  title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '1.2rem' },
-  tabs: { display: 'flex', gap: '.5rem', marginBottom: '1.2rem', flexWrap: 'wrap' },
-  tab: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.5rem 1rem', fontSize: '.78rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', cursor: 'pointer' },
-  tabActive: { background: 'rgba(0,230,118,.09)', borderColor: '#00E676', color: '#00E676' },
-  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
-  cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
-  form: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem' },
-  input: { padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', width: '100%' },
-  btn: { padding: '.75rem 1rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.82rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
-  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
-  posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
-  badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
-  toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
-  toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-}
-
 function AnnouncementsTab() {
   const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
@@ -539,11 +486,7 @@ function AnnouncementsTab() {
 
   const fetchAnnouncements = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('is_pinned', { ascending: false })
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('announcements').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
     setAnnouncements(data || [])
     setLoading(false)
   }
@@ -579,32 +522,18 @@ function AnnouncementsTab() {
   return (
     <div>
       {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
-
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1rem' }}>
         <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Post Announcement</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
-          <input
-            style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none' }}
-            placeholder="Title"
-            value={form.title}
-            onChange={e => setForm({ ...form, title: e.target.value })}
-          />
-          <textarea
-            style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
-            placeholder="Message body..."
-            value={form.body}
-            onChange={e => setForm({ ...form, body: e.target.value })}
-          />
+          <input style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none' }} placeholder="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+          <textarea style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }} placeholder="Message body..." value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} />
           <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', color: '#5A7A5E', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.is_pinned} onChange={e => setForm({ ...form, is_pinned: e.target.checked })} />
             📌 Pin this announcement
           </label>
-          <button style={{ padding: '.8rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' }} onClick={addAnnouncement}>
-            POST ANNOUNCEMENT
-          </button>
+          <button style={{ padding: '.8rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' }} onClick={addAnnouncement}>POST ANNOUNCEMENT</button>
         </div>
       </div>
-
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
         <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>All Announcements ({announcements.length})</div>
         {announcements.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No announcements yet</div>}
@@ -617,12 +546,8 @@ function AnnouncementsTab() {
                 <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>{new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
               </div>
               <div style={{ display: 'flex', gap: '.4rem' }}>
-                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: a.is_pinned ? 'rgba(255,215,0,.1)' : 'transparent', border: '1px solid #FFD700', color: '#FFD700', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => togglePin(a.id, a.is_pinned)}>
-                  {a.is_pinned ? 'Unpin' : 'Pin'}
-                </button>
-                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => deleteAnnouncement(a.id)}>
-                  Delete
-                </button>
+                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: a.is_pinned ? 'rgba(255,215,0,.1)' : 'transparent', border: '1px solid #FFD700', color: '#FFD700', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => togglePin(a.id, a.is_pinned)}>{a.is_pinned ? 'Unpin' : 'Pin'}</button>
+                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
               </div>
             </div>
           </div>
@@ -630,7 +555,7 @@ function AnnouncementsTab() {
       </div>
     </div>
   )
-      }
+}
 
 function SeasonTab() {
   const [loading, setLoading] = useState(true)
@@ -664,10 +589,7 @@ function SeasonTab() {
 
   const endSeason = async () => {
     if (!confirm(`End the ${seasonName} season? This will crown the champion and lock the final standings. This cannot be undone.`)) return
-
     await supabase.from('settings').update({ value: 'ended' }).eq('id', 'season_status')
-
-    // Post champion announcement
     if (champion) {
       await supabase.from('announcements').insert({
         title: `🏆 ${seasonName} Season Champion!`,
@@ -675,32 +597,19 @@ function SeasonTab() {
         is_pinned: true
       })
     }
-
     showToast('🏆 Season ended! Champion crowned!')
     fetchData()
   }
 
   const resetSeason = async () => {
     if (!confirm('Start a new season? This will reset ALL manager points and matchday data. Player stats will be kept.')) return
-
-    // Reset manager points
     await supabase.from('managers').update({ total_points: 0, free_transfers: 1, wildcard_used: false }).eq('payment_status', 'confirmed')
-
-    // Clear matchday points
     await supabase.from('matchday_points').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-
-    // Clear squads
     await supabase.from('squads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-
-    // Clear match events and reset matches
     await supabase.from('match_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-
-    // Update season
-    const newSeason = '2026/27'
     await supabase.from('settings').update({ value: 'active' }).eq('id', 'season_status')
-    await supabase.from('settings').update({ value: newSeason }).eq('id', 'season_name')
-
+    await supabase.from('settings').update({ value: '2026/27' }).eq('id', 'season_name')
     showToast('✅ New season started!')
     fetchData()
   }
@@ -710,24 +619,18 @@ function SeasonTab() {
   return (
     <div>
       {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
-
-      {/* Season Status */}
       <div style={{ background: seasonStatus === 'ended' ? 'rgba(255,215,0,.04)' : 'rgba(0,230,118,.04)', border: `1px solid ${seasonStatus === 'ended' ? 'rgba(255,215,0,.2)' : 'rgba(0,230,118,.2)'}`, borderRadius: '12px', padding: '1.5rem', marginBottom: '1.2rem' }}>
         <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.4rem' }}>Current Season</div>
         <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', lineHeight: 1, marginBottom: '.4rem' }}>{seasonName}</div>
-        <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: seasonStatus === 'active' ? 'rgba(0,230,118,.1)' : seasonStatus === 'ended' ? 'rgba(255,215,0,.1)' : 'rgba(100,181,246,.1)', color: seasonStatus === 'active' ? '#00E676' : seasonStatus === 'ended' ? '#FFD700' : '#64B5F6' }}>
+        <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: seasonStatus === 'active' ? 'rgba(0,230,118,.1)' : 'rgba(255,215,0,.1)', color: seasonStatus === 'active' ? '#00E676' : '#FFD700' }}>
           {seasonStatus === 'active' ? '🟢 ACTIVE' : '🏁 ENDED'}
         </span>
       </div>
-
-      {/* Top 3 */}
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1.2rem' }}>
         <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>🏆 Current Standings</div>
         {topManagers.map((m, i) => (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.7rem 0', borderBottom: i < topManagers.length - 1 ? '1px solid #1E2E20' : 'none' }}>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: i === 0 ? '#FFD700' : i === 1 ? '#B0BEC5' : '#C97038' }}>
-              {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-            </div>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: i === 0 ? '#FFD700' : i === 1 ? '#B0BEC5' : '#C97038' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.team_name || m.full_name}</div>
               <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{m.department}</div>
@@ -736,8 +639,6 @@ function SeasonTab() {
           </div>
         ))}
       </div>
-
-      {/* Champion Banner */}
       {seasonStatus === 'ended' && champion && (
         <div style={{ background: 'linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,215,0,.03))', border: '1px solid rgba(255,215,0,.3)', borderRadius: '12px', padding: '2rem', marginBottom: '1.2rem', textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: '.5rem' }}>🏆</div>
@@ -746,8 +647,6 @@ function SeasonTab() {
           <div style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.4rem' }}>{champion.total_points} points · {champion.department}</div>
         </div>
       )}
-
-      {/* Actions */}
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
         <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem', color: '#E8F5E9' }}>Season Actions</div>
         {seasonStatus === 'active' && (
@@ -758,10 +657,26 @@ function SeasonTab() {
         <button style={{ padding: '.9rem', borderRadius: '8px', background: 'rgba(239,154,154,.1)', border: '1px solid #EF9A9A', color: '#EF9A9A', fontWeight: '800', fontSize: '.85rem', cursor: 'pointer', letterSpacing: '1px' }} onClick={resetSeason}>
           🔄 Reset & Start New Season
         </button>
-        <p style={{ fontSize: '.75rem', color: '#5A7A5E', lineHeight: 1.6 }}>
-          ⚠ Ending the season will crown the current leader as champion and post an announcement. Resetting will clear all points, squads and matches for a fresh season.
-        </p>
+        <p style={{ fontSize: '.75rem', color: '#5A7A5E', lineHeight: 1.6 }}>⚠ Ending the season will crown the current leader as champion and post an announcement. Resetting will clear all points, squads and matches for a fresh season.</p>
       </div>
     </div>
   )
-              }
+}
+
+const styles = {
+  wrap: { padding: '2rem 0' },
+  title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px', marginBottom: '1.2rem' },
+  tabs: { display: 'flex', gap: '.5rem', marginBottom: '1.2rem', flexWrap: 'wrap' },
+  tab: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.5rem 1rem', fontSize: '.78rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', cursor: 'pointer' },
+  tabActive: { background: 'rgba(0,230,118,.09)', borderColor: '#00E676', color: '#00E676' },
+  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
+  cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
+  form: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem' },
+  input: { padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', width: '100%' },
+  btn: { padding: '.75rem 1rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.82rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
+  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
+  posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
+  badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
+  toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
+  toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
+                                              }
