@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements', 'Season']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
+
 export default function Admin() {
   const [tab, setTab] = useState('Teams')
   const [teams, setTeams] = useState([])
