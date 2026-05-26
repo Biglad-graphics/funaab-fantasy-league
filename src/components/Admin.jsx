@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements']
+const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements', 'Season']
 const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
 
 export default function Admin() {
@@ -442,6 +442,9 @@ export default function Admin() {
   )
 }
 
+{/* SEASON */}
+{tab === 'Season' && <SeasonTab />}
+
 function PaymentsTab() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -627,3 +630,137 @@ function AnnouncementsTab() {
     </div>
   )
       }
+
+function SeasonTab() {
+  const [loading, setLoading] = useState(true)
+  const [seasonStatus, setSeasonStatus] = useState('active')
+  const [seasonName, setSeasonName] = useState('2025/26')
+  const [champion, setChampion] = useState(null)
+  const [topManagers, setTopManagers] = useState([])
+  const [toast, setToast] = useState(null)
+
+  useEffect(() => { fetchData() }, [])
+
+  const fetchData = async () => {
+    setLoading(true)
+    const [{ data: settings }, { data: managers }] = await Promise.all([
+      supabase.from('settings').select('*'),
+      supabase.from('managers').select('*').eq('payment_status', 'confirmed').order('total_points', { ascending: false }).limit(3)
+    ])
+    const status = settings?.find(s => s.id === 'season_status')?.value || 'active'
+    const name = settings?.find(s => s.id === 'season_name')?.value || '2025/26'
+    setSeasonStatus(status)
+    setSeasonName(name)
+    setTopManagers(managers || [])
+    if (managers?.length > 0) setChampion(managers[0])
+    setLoading(false)
+  }
+
+  const showToast = (msg, bad = false) => {
+    setToast({ msg, bad })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const endSeason = async () => {
+    if (!confirm(`End the ${seasonName} season? This will crown the champion and lock the final standings. This cannot be undone.`)) return
+
+    await supabase.from('settings').update({ value: 'ended' }).eq('id', 'season_status')
+
+    // Post champion announcement
+    if (champion) {
+      await supabase.from('announcements').insert({
+        title: `🏆 ${seasonName} Season Champion!`,
+        body: `Congratulations to ${champion.team_name || champion.full_name} for winning the FUNAAB Fantasy League ${seasonName} season with ${champion.total_points} points! 🎉`,
+        is_pinned: true
+      })
+    }
+
+    showToast('🏆 Season ended! Champion crowned!')
+    fetchData()
+  }
+
+  const resetSeason = async () => {
+    if (!confirm('Start a new season? This will reset ALL manager points and matchday data. Player stats will be kept.')) return
+
+    // Reset manager points
+    await supabase.from('managers').update({ total_points: 0, free_transfers: 1, wildcard_used: false }).eq('payment_status', 'confirmed')
+
+    // Clear matchday points
+    await supabase.from('matchday_points').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+    // Clear squads
+    await supabase.from('squads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+    // Clear match events and reset matches
+    await supabase.from('match_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+    // Update season
+    const newSeason = '2026/27'
+    await supabase.from('settings').update({ value: 'active' }).eq('id', 'season_status')
+    await supabase.from('settings').update({ value: newSeason }).eq('id', 'season_name')
+
+    showToast('✅ New season started!')
+    fetchData()
+  }
+
+  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
+
+  return (
+    <div>
+      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+
+      {/* Season Status */}
+      <div style={{ background: seasonStatus === 'ended' ? 'rgba(255,215,0,.04)' : 'rgba(0,230,118,.04)', border: `1px solid ${seasonStatus === 'ended' ? 'rgba(255,215,0,.2)' : 'rgba(0,230,118,.2)'}`, borderRadius: '12px', padding: '1.5rem', marginBottom: '1.2rem' }}>
+        <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.4rem' }}>Current Season</div>
+        <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', lineHeight: 1, marginBottom: '.4rem' }}>{seasonName}</div>
+        <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: seasonStatus === 'active' ? 'rgba(0,230,118,.1)' : seasonStatus === 'ended' ? 'rgba(255,215,0,.1)' : 'rgba(100,181,246,.1)', color: seasonStatus === 'active' ? '#00E676' : seasonStatus === 'ended' ? '#FFD700' : '#64B5F6' }}>
+          {seasonStatus === 'active' ? '🟢 ACTIVE' : '🏁 ENDED'}
+        </span>
+      </div>
+
+      {/* Top 3 */}
+      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1.2rem' }}>
+        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>🏆 Current Standings</div>
+        {topManagers.map((m, i) => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.7rem 0', borderBottom: i < topManagers.length - 1 ? '1px solid #1E2E20' : 'none' }}>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: i === 0 ? '#FFD700' : i === 1 ? '#B0BEC5' : '#C97038' }}>
+              {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.team_name || m.full_name}</div>
+              <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{m.department}</div>
+            </div>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: '#00E676' }}>{m.total_points}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Champion Banner */}
+      {seasonStatus === 'ended' && champion && (
+        <div style={{ background: 'linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,215,0,.03))', border: '1px solid rgba(255,215,0,.3)', borderRadius: '12px', padding: '2rem', marginBottom: '1.2rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '.5rem' }}>🏆</div>
+          <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.3rem' }}>Season Champion</div>
+          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#FFD700', lineHeight: 1 }}>{champion.team_name || champion.full_name}</div>
+          <div style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.4rem' }}>{champion.total_points} points · {champion.department}</div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
+        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem', color: '#E8F5E9' }}>Season Actions</div>
+        {seasonStatus === 'active' && (
+          <button style={{ padding: '.9rem', borderRadius: '8px', background: 'rgba(255,215,0,.1)', border: '1px solid #FFD700', color: '#FFD700', fontWeight: '800', fontSize: '.85rem', cursor: 'pointer', letterSpacing: '1px' }} onClick={endSeason}>
+            🏁 End Season & Crown Champion
+          </button>
+        )}
+        <button style={{ padding: '.9rem', borderRadius: '8px', background: 'rgba(239,154,154,.1)', border: '1px solid #EF9A9A', color: '#EF9A9A', fontWeight: '800', fontSize: '.85rem', cursor: 'pointer', letterSpacing: '1px' }} onClick={resetSeason}>
+          🔄 Reset & Start New Season
+        </button>
+        <p style={{ fontSize: '.75rem', color: '#5A7A5E', lineHeight: 1.6 }}>
+          ⚠ Ending the season will crown the current leader as champion and post an announcement. Resetting will clear all points, squads and matches for a fresh season.
+        </p>
+      </div>
+    </div>
+  )
+              }
