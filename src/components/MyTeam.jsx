@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function MyTeam({ manager }) {
-  const [view, setView] = useState('squad')
+  const [view, setView] = useState('pitch')
   const [squad, setSquad] = useState([])
   const [players, setPlayers] = useState([])
   const [selected, setSelected] = useState([])
@@ -128,7 +128,8 @@ export default function MyTeam({ manager }) {
 
       {/* View Toggle */}
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <button onClick={() => setView('squad')} style={{ ...styles.tab, ...(view === 'squad' ? styles.tabActive : {}) }}>My Squad</button>
+        <button onClick={() => setView('pitch')} style={{ ...styles.tab, ...(view === 'pitch' ? styles.tabActive : {}) }}>⚽ Pitch</button>
+        <button onClick={() => setView('squad')} style={{ ...styles.tab, ...(view === 'squad' ? styles.tabActive : {}) }}>📋 List</button>
         <button
           onClick={() => { if (transferWindow === 'closed') return showToast('🔒 Transfer window is closed', true); setView('pick') }}
           style={{ ...styles.tab, ...(view === 'pick' ? styles.tabActive : {}), opacity: transferWindow === 'closed' ? .5 : 1 }}
@@ -145,6 +146,29 @@ export default function MyTeam({ manager }) {
           </div>
         )}
       </div>
+
+      {/* PITCH VIEW */}
+{view === 'pitch' && (
+  <div>
+    {selected.length === 0 ? (
+      <div style={{ textAlign: 'center', padding: '3rem', background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚽</div>
+        <p style={{ color: '#5A7A5E', marginBottom: '1rem' }}>No squad selected yet</p>
+        <button style={styles.btn} onClick={() => setView('pick')}>Pick Your Squad</button>
+      </div>
+    ) : (
+      <>
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '.8rem 1.2rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '.72rem', color: '#5A7A5E' }}>
+          <span>Tap a player to set as <strong style={{ color: '#FFD700' }}>Captain ⭐</strong></span>
+        </div>
+        <PitchView selected={selected} onSetCaptain={setCaptain} />
+        <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
+          {saving ? 'SAVING...' : 'SAVE SQUAD'}
+        </button>
+      </>
+    )}
+  </div>
+)}
 
       {/* SQUAD VIEW */}
       {view === 'squad' && (
@@ -262,6 +286,163 @@ export default function MyTeam({ manager }) {
     </div>
   )
 }
+
+function PitchView({ selected, onSetCaptain }) {
+  const starters = selected.filter(p => p.is_starting)
+  const bench = selected.filter(p => !p.is_starting)
+
+  const gk = starters.filter(p => p.position === 'GK')
+  const df = starters.filter(p => p.position === 'DF')
+  const mf = starters.filter(p => p.position === 'MF')
+  const fw = starters.filter(p => p.position === 'FW')
+
+  const PlayerCard = ({ player }) => (
+    <div
+      onClick={() => onSetCaptain(player.id)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '.2rem',
+        cursor: 'pointer',
+        position: 'relative',
+        minWidth: '55px'
+      }}
+    >
+      {/* Jersey */}
+      <div style={{
+        width: '42px',
+        height: '42px',
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.15)',
+        border: '2px solid rgba(255,255,255,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '.7rem',
+        fontWeight: '800',
+        color: '#fff',
+        position: 'relative',
+        backdropFilter: 'blur(4px)'
+      }}>
+        {player.name.charAt(0)}
+        {player.is_captain && (
+          <div style={{
+            position: 'absolute',
+            top: '-6px',
+            right: '-6px',
+            width: '16px',
+            height: '16px',
+            borderRadius: '50%',
+            background: '#FFD700',
+            color: '#080C0A',
+            fontSize: '.55rem',
+            fontWeight: '900',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>C</div>
+        )}
+      </div>
+      {/* Name */}
+      <div style={{
+        background: 'rgba(0,0,0,0.7)',
+        color: '#fff',
+        fontSize: '.58rem',
+        fontWeight: '700',
+        padding: '.15rem .4rem',
+        borderRadius: '4px',
+        maxWidth: '60px',
+        textAlign: 'center',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}>
+        {player.name.split(' ').pop()}
+      </div>
+      {/* Points */}
+      <div style={{
+        background: '#00E676',
+        color: '#080C0A',
+        fontSize: '.55rem',
+        fontWeight: '900',
+        padding: '.1rem .35rem',
+        borderRadius: '3px'
+      }}>
+        {player.total_points ?? 0}pts
+      </div>
+    </div>
+  )
+
+  const Row = ({ players }) => (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      width: '100%',
+      padding: '.3rem 0'
+    }}>
+      {players.map(p => <PlayerCard key={p.id} player={p} />)}
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Pitch */}
+      <div style={{
+        background: 'linear-gradient(180deg, #2d8a4e 0%, #3aa058 25%, #2d8a4e 50%, #3aa058 75%, #2d8a4e 100%)',
+        borderRadius: '12px',
+        padding: '1rem .5rem',
+        position: 'relative',
+        overflow: 'hidden',
+        border: '2px solid rgba(255,255,255,0.1)',
+        minHeight: '420px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-around'
+      }}>
+        {/* Pitch markings */}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {/* Center circle */}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '80px', height: '80px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)' }} />
+          {/* Center line */}
+          <div style={{ position: 'absolute', top: '50%', left: '5%', right: '5%', height: '1px', background: 'rgba(255,255,255,0.2)' }} />
+          {/* Penalty areas */}
+          <div style={{ position: 'absolute', top: '5%', left: '25%', right: '25%', height: '15%', border: '1px solid rgba(255,255,255,0.2)', borderBottom: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '5%', left: '25%', right: '25%', height: '15%', border: '1px solid rgba(255,255,255,0.2)', borderTop: 'none' }} />
+        </div>
+
+        {/* Players by row - FW at top, GK at bottom */}
+        <Row players={fw} />
+        <Row players={mf} />
+        <Row players={df} />
+        <Row players={gk} />
+      </div>
+
+      {/* Bench */}
+      {bench.length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.6rem' }}>🪑 Substitutes</div>
+          <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '.8rem', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '.5rem' }}>
+            {bench.map(p => (
+              <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.2rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1E2E20', border: '1px solid #2E4E30', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.65rem', fontWeight: '800', color: '#5A7A5E' }}>
+                  {p.name.charAt(0)}
+                </div>
+                <div style={{ fontSize: '.55rem', color: '#5A7A5E', fontWeight: '700', maxWidth: '50px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.name.split(' ').pop()}
+                </div>
+                <div style={{ fontSize: '.5rem', background: '#1E2E20', color: '#5A7A5E', padding: '.1rem .3rem', borderRadius: '3px', fontWeight: '700' }}>
+                  {p.position}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+          }
 
 const styles = {
   tab: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.5rem 1.2rem', fontSize: '.78rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', cursor: 'pointer' },
