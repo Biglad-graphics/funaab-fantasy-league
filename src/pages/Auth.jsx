@@ -37,7 +37,7 @@ export default function Auth({ isLogin, setPage }) {
           full_name: form.full_name,
           matric_number: form.matric_number
         },
-        emailRedirectTo: 'https://biglad-graphics.github.io/funaab-fantasy-league/'
+        emailRedirectTo: 'https://funaab-fantasy-league.vercel.app'
       }
     })
 
@@ -62,7 +62,7 @@ export default function Auth({ isLogin, setPage }) {
     setLoading(true)
     setError(null)
     const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-      redirectTo: 'https://biglad-graphics.github.io/funaab-fantasy-league/'
+      redirectTo: 'https://funaab-fantasy-league.vercel.app'
     })
     if (error) setError(error.message)
     else setSuccess('✅ Password reset email sent!')
@@ -76,7 +76,7 @@ export default function Auth({ isLogin, setPage }) {
       <div style={styles.card}>
         <button style={styles.backBtn} onClick={() => setPage('landing')}>← Back</button>
         <div style={styles.logoWrap}>
-          <img src="/funaab-fantasy-league/logo.png" alt="FFL" style={styles.logoImg} />
+          <img src="/logo.png" alt="FFL" style={styles.logoImg} />
         </div>
         <h1 style={styles.title}>FANTASY FUNAAB<br />FOOTBALL LEAGUE</h1>
 
@@ -121,7 +121,7 @@ export default function Auth({ isLogin, setPage }) {
 
 const styles = {
   wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
-  bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/funaab-fantasy-league/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
+  bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
   overlay: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88))', zIndex: 1 },
   card: { position: 'relative', zIndex: 2, background: 'rgba(13,20,16,0.95)', border: '1px solid #1E2E20', padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '.85rem', margin: '1rem', backdropFilter: 'blur(20px)', maxHeight: '90vh', overflowY: 'auto' },
   backBtn: { background: 'transparent', border: 'none', color: '#5A7A5E', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer', textAlign: 'left', padding: 0, letterSpacing: '1px' },
@@ -137,4 +137,4 @@ const styles = {
   error: { color: '#EF9A9A', fontSize: '.78rem', textAlign: 'center', background: 'rgba(239,154,154,0.08)', border: '1px solid rgba(239,154,154,0.2)', padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
   successBox: { color: '#00E676', fontSize: '.78rem', textAlign: 'center', background: 'rgba(0,230,118,0.08)', border: '1px solid rgba(0,230,118,0.2)', padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
   footer: { borderTop: '1px solid #1E2E20', paddingTop: '.85rem', textAlign: 'center', fontSize: '.6rem', fontWeight: '700', letterSpacing: '2px', color: '#5A7A5E', textTransform: 'uppercase' }
-            }
+      }
