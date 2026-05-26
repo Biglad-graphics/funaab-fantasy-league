@@ -5,6 +5,7 @@ import Leaderboard from '../components/Leaderboard.jsx'
 import MyTeam from '../components/MyTeam.jsx'
 import Fixtures from '../components/Fixtures.jsx'
 import Profile from '../components/Profile.jsx'
+import Players from '../components/Players.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
@@ -16,6 +17,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
     { id: 'myteam', label: 'My Team', icon: '⚽' },
     { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'players', label: 'Players', icon: '📊' },
     ...(manager?.is_admin ? [{ id: 'admin', label: 'Admin', icon: '🔐' }] : [])
   ]
 
@@ -89,6 +91,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
         {activePage === 'myteam' && <MyTeam manager={manager} />}
         {activePage === 'profile' && <Profile manager={manager} onUpdate={refetchManager} onLogout={onLogout} />}
         {activePage === 'admin' && manager?.is_admin && <Admin />}
+        {activePage === 'players' && <Players />}
       </div>
     </div>
   )
