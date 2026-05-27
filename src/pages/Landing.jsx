@@ -27,7 +27,7 @@ export default function Landing({ setPage }) {
     <div style={{ minHeight: '100vh', background: '#080C0A', color: '#E8F5E9', fontFamily: 'Bricolage Grotesque, sans-serif' }}>
       {/* Nav */}
       <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,10,0.97)', borderBottom: '1px solid #1E2E20', backdropFilter: 'blur(10px)' }}>
-        <img src="/funaab-fantasy-league/logo.png" alt="FFL" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="FFL" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
         <div style={{ display: 'flex', gap: '.5rem' }}>
           <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid #1E2E20', color: '#E8F5E9', padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer' }}>Login</button>
           <button onClick={() => setPage('register')} style={{ background: '#00E676', border: 'none', color: '#080C0A', padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '800', cursor: 'pointer' }}>Register</button>
@@ -39,7 +39,7 @@ export default function Landing({ setPage }) {
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/funaab-fantasy-league/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.25)', transform: 'scale(1.05)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.5), rgba(8,12,10,0.9))' }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: '800px' }}>
-          <img src="/funaab-fantasy-league/logo.png" alt="FFL" style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '1.5rem' }} />
+          <img src="/logo.png" alt="FFL" style={{ width: '80px', height: '80px', objectFit: 'contain', marginBottom: '1.5rem' }} />
           <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(3.5rem, 10vw, 8rem)', lineHeight: .95, letterSpacing: '2px' }}>
             FUNAAB
             <span style={{ color: '#00E676', display: 'block' }}>FANTASY</span>
