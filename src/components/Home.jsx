@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import PointsSystem from './PointsSystem'
 
 export default function Home({ manager }) {
   const [matches, setMatches] = useState([])
@@ -78,6 +79,8 @@ export default function Home({ manager }) {
           </div>
         ))}
       </div>
+
+      <PointsSystem />
 
       <div style={styles.twoCol}>
         {/* Matches */}
@@ -174,4 +177,4 @@ const styles = {
   playerName: { fontWeight: '700', fontSize: '.82rem' },
   playerTeam: { fontSize: '.68rem', color: '#5A7A5E' },
   playerStats: { fontSize: '.72rem', color: '#5A7A5E' }
-}
+        }
