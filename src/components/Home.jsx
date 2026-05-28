@@ -8,6 +8,8 @@ export default function Home({ manager }) {
   const [rank, setRank] = useState(null)
   const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
+  const [managerOfWeek, setManagerOfWeek] = useState(null)
+  const [currentGameweek, setCurrentGameweek] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -16,17 +18,19 @@ export default function Home({ manager }) {
       .channel('home-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matchday_points' }, fetchData)
       .subscribe()
 
     return () => supabase.removeChannel(channel)
   }, [])
 
   const fetchData = async () => {
-    const [{ data: matchData }, { data: playerData }, { data: rankData }, { data: announcementData }] = await Promise.all([
+    const [{ data: matchData }, { data: playerData }, { data: rankData }, { data: announcementData }, { data: matchdayData }] = await Promise.all([
       supabase.from('matches').select('*').order('kickoff_time', { ascending: true }).limit(5),
       supabase.from('players').select('*').order('goals', { ascending: false }).limit(5),
       supabase.from('managers').select('id, total_points').order('total_points', { ascending: false }),
-      supabase.from('announcements').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(5)
+      supabase.from('announcements').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(5),
+      supabase.from('matchday_points').select('*, managers(id, full_name, team_name)').order('matchday', { ascending: false })
     ])
 
     setMatches(matchData || [])
@@ -37,6 +41,25 @@ export default function Home({ manager }) {
       const idx = rankData.findIndex(m => m.id === manager?.id)
       setRank(idx + 1)
     }
+
+    // Get Manager of the Week (most recent completed gameweek)
+    if (matchdayData && matchdayData.length > 0) {
+      // Get the most recent gameweek
+      const latestGameweek = matchdayData[0].matchday
+      setCurrentGameweek(latestGameweek)
+      
+      // Get all managers' points for that gameweek
+      const gameweekData = matchdayData.filter(m => m.matchday === latestGameweek)
+      
+      // Find the manager with highest points in that week
+      if (gameweekData.length > 0) {
+        const topManager = gameweekData.reduce((prev, current) =>
+          (prev.points || 0) > (current.points || 0) ? prev : current
+        )
+        setManagerOfWeek(topManager)
+      }
+    }
+
     setLoading(false)
   }
 
@@ -79,6 +102,22 @@ export default function Home({ manager }) {
           </div>
         ))}
       </div>
+
+      {/* Manager of the Week Card */}
+      {managerOfWeek && currentGameweek && (
+        <div style={styles.motw}>
+          <div style={styles.motwIcon}>👑</div>
+          <div style={styles.motwContent}>
+            <div style={styles.motwLabel}>MANAGER OF THE WEEK</div>
+            <div style={styles.motwGameweek}>Gameweek {currentGameweek}</div>
+            <div style={styles.motwManager}>{managerOfWeek.managers?.team_name || managerOfWeek.managers?.full_name || 'Unknown'}</div>
+            <div style={styles.motwPoints}>{managerOfWeek.points} pts</div>
+          </div>
+          <div style={styles.motwBadge}>
+            <div style={styles.motwRank}>1st</div>
+          </div>
+        </div>
+      )}
 
       <PointsSystem />
 
@@ -162,6 +201,29 @@ const styles = {
   statIcon: { fontSize: '1.2rem', marginBottom: '.4rem' },
   statLabel: { fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' },
   statValue: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', lineHeight: 1 },
+  
+  // Manager of the Week styles
+  motw: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.2rem',
+    background: 'linear-gradient(135deg,rgba(255,215,0,.1),rgba(0,230,118,.05))',
+    border: '2px solid rgba(255,215,0,.3)',
+    borderRadius: '12px',
+    padding: '1.2rem 1.5rem',
+    marginBottom: '1.5rem',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  motwIcon: { fontSize: '3rem', lineHeight: 1 },
+  motwContent: { flex: 1 },
+  motwLabel: { fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.2rem' },
+  motwGameweek: { fontSize: '.75rem', color: '#5A7A5E', marginBottom: '.3rem' },
+  motwManager: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: '#E8F5E9', lineHeight: 1.2, marginBottom: '.2rem' },
+  motwPoints: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: '#FFD700', lineHeight: 1 },
+  motwBadge: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '60px', height: '60px', background: 'linear-gradient(135deg,#FFD700,#FFA500)', borderRadius: '50%', flexShrink: 0, boxShadow: '0 4px 12px rgba(255,215,0,.25)' },
+  motwRank: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', fontWeight: '900', color: '#080C0A', textShadow: '0 2px 4px rgba(0,0,0,.3)' },
+
   twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '1.2rem' },
   card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
   cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
@@ -177,4 +239,4 @@ const styles = {
   playerName: { fontWeight: '700', fontSize: '.82rem' },
   playerTeam: { fontSize: '.68rem', color: '#5A7A5E' },
   playerStats: { fontSize: '.72rem', color: '#5A7A5E' }
-        }
+}
