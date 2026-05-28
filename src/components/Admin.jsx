@@ -93,83 +93,115 @@ export default function Admin() {
   }
 
   const endMatch = async () => {
-    if (!liveMatch) return
-    showToast('⏳ Calculating points...')
-    const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
-    const pointsMap = {
-      goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
-      assist: 3, started: 1, played_90: 2,
-      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2
-    }
-    const playerPoints = {}
-    for (const event of events || []) {
-      if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
-      const player = matchPlayers.find(p => p.id === event.player_id)
-      const pos = player?.position || 'FW'
-      let pts = 0
-      if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
-      else if (event.event_type === 'assist') pts = pointsMap.assist
-      else if (event.event_type === 'started') pts = pointsMap.started
-      else if (event.event_type === 'played_90') pts = pointsMap.played_90
-      else if (event.event_type === 'yellow') pts = pointsMap.yellow
-      else if (event.event_type === 'red') pts = pointsMap.red
-      else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
-      else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
-      playerPoints[event.player_id] += pts
-    }
-    const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
-    if (goalsScored === 0) {
-      for (const player of matchPlayers) {
-        if (['GK', 'DF'].includes(player.position)) {
-          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-          if (played) {
-            if (!playerPoints[player.id]) playerPoints[player.id] = 0
-            playerPoints[player.id] += 4
-          }
-        }
-      }
-    }
-    const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
-    const managerSquads = {}
-    for (const sq of allSquads || []) {
-      if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
-      managerSquads[sq.manager_id].push(sq)
-    }
-    for (const [managerId, squad] of Object.entries(managerSquads)) {
-      let totalMatchPoints = 0
-      for (const sq of squad) {
-        const playerPts = playerPoints[sq.player_id] || 0
-        const multiplier = sq.is_captain ? 2 : 1
-        if (sq.is_starting) {
-          const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
-          if (!didPlay) {
-            const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
-            if (benchSub) { totalMatchPoints += playerPoints[benchSub.player_id] || 0; continue }
-          }
-          totalMatchPoints += playerPts * multiplier
-        }
-      }
-      const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
-      const newTotal = (currentManager?.total_points || 0) + totalMatchPoints
-      await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
-      await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
-    }
-    for (const [playerId] of Object.entries(playerPoints)) {
-      const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
-      const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
-      if (playerGoals > 0 || playerAssists > 0) {
-        const current = matchPlayers.find(p => p.id === playerId)
-        await supabase.from('players').update({
-          goals: (current?.goals || 0) + playerGoals,
-          assists: (current?.assists || 0) + playerAssists
-        }).eq('id', playerId)
-      }
-    }
-    await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
-    showToast('✅ Points calculated & match ended!')
-    setLiveMatch(null)
-    fetchAll()
+  if (!liveMatch) return
+  showToast('⏳ Calculating points...')
+  
+  const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
+  
+  const pointsMap = {
+    goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
+    assist: 3, started: 1, played_90: 2,
+    yellow: -1, red: -3, own_goal: -3, penalty_missed: -2,
+    clean_sheet_GK: 4, clean_sheet_DF: 4,
+    goal_conceded_GK: -1, goal_conceded_DF: -1
   }
+  
+  const playerPoints = {}
+  
+  // Calculate points from events
+  for (const event of events || []) {
+    if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
+    const player = matchPlayers.find(p => p.id === event.player_id)
+    const pos = player?.position || 'FW'
+    
+    let pts = 0
+    if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
+    else if (event.event_type === 'assist') pts = pointsMap.assist
+    else if (event.event_type === 'started') pts = pointsMap.started
+    else if (event.event_type === 'played_90') pts = pointsMap.played_90
+    else if (event.event_type === 'yellow') pts = pointsMap.yellow
+    else if (event.event_type === 'red') pts = pointsMap.red
+    else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
+    else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
+    
+    playerPoints[event.player_id] += pts
+  }
+  
+  // CLEAN SHEET LOGIC (NEW!)
+  const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
+  
+  if (goalsScored === 0) {
+    // No goals = clean sheet for all playing GK & DF
+    for (const player of matchPlayers) {
+      if (['GK', 'DF'].includes(player.position)) {
+        const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
+        if (played) {
+          if (!playerPoints[player.id]) playerPoints[player.id] = 0
+          // 4 points for clean sheet
+          playerPoints[player.id] += pointsMap[`clean_sheet_${player.position}`]
+        }
+      }
+    }
+  } else {
+    // Goals were scored = deduct points for each goal conceded (GK & DF only)
+    for (const player of matchPlayers) {
+      if (['GK', 'DF'].includes(player.position)) {
+        const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
+        if (played) {
+          if (!playerPoints[player.id]) playerPoints[player.id] = 0
+          // -1 point per goal conceded
+          playerPoints[player.id] += goalsScored * pointsMap.goal_conceded_GK
+        }
+      }
+    }
+  }
+  
+  // Calculate manager points (existing logic continues...)
+  const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
+  const managerSquads = {}
+  for (const sq of allSquads || []) {
+    if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
+    managerSquads[sq.manager_id].push(sq)
+  }
+  
+  for (const [managerId, squad] of Object.entries(managerSquads)) {
+    let totalMatchPoints = 0
+    for (const sq of squad) {
+      const playerPts = playerPoints[sq.player_id] || 0
+      const multiplier = sq.is_captain ? 2 : 1
+      if (sq.is_starting) {
+        const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
+        if (!didPlay) {
+          const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
+          if (benchSub) { totalMatchPoints += playerPoints[benchSub.player_id] || 0; continue }
+        }
+        totalMatchPoints += playerPts * multiplier
+      }
+    }
+    const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
+    const newTotal = (currentManager?.total_points || 0) + totalMatchPoints
+    await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
+    await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
+  }
+  
+  // Update player goals/assists
+  for (const [playerId] of Object.entries(playerPoints)) {
+    const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
+    const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
+    if (playerGoals > 0 || playerAssists > 0) {
+      const current = matchPlayers.find(p => p.id === playerId)
+      await supabase.from('players').update({
+        goals: (current?.goals || 0) + playerGoals,
+        assists: (current?.assists || 0) + playerAssists
+      }).eq('id', playerId)
+    }
+  }
+  
+  await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
+  showToast('✅ Points calculated!')
+  setLiveMatch(null)
+  fetchAll()
+            }
 
   const addEvent = async () => {
     if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
