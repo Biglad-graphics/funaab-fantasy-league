@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { getFormStatus, formatRating, getPriceTrend } from '../lib/ratingEngine'
+import { getFormStatus, formatRating } from '../lib/ratingEngine'
 
 export default function Players() {
   const [players, setPlayers] = useState([])
@@ -9,7 +9,7 @@ export default function Players() {
   const [posFilter, setPosFilter] = useState('ALL')
   const [teamFilter, setTeamFilter] = useState('ALL')
   const [teams, setTeams] = useState([])
-  const [sortBy, setSortBy] = useState('current_rating') // Changed default to rating
+  const [sortBy, setSortBy] = useState('current_rating')
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [playerHistory, setPlayerHistory] = useState([])
 
@@ -128,10 +128,10 @@ export default function Players() {
         </div>
       </div>
 
-      {/* Player List */}
+      {/* Player List - FIXED FOR MOBILE */}
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem' }}>
-        {/* Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 50px 50px 60px 70px 80px', padding: '.8rem 1.2rem', fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', borderBottom: '1px solid #1E2E20', gap: '.5rem', alignItems: 'center' }}>
+        {/* Header - Hide on mobile, show on larger screens */}
+        <div style={{ display: 'none', '@media (min-width: 768px)': { display: 'grid' }, gridTemplateColumns: '32px 1fr 50px 50px 60px 70px 80px', padding: '.8rem 1.2rem', fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', borderBottom: '1px solid #1E2E20', gap: '.5rem', alignItems: 'center' }}>
           <span>#</span>
           <span>Player</span>
           <span style={{ textAlign: 'center' }}>⚽</span>
@@ -152,44 +152,51 @@ export default function Players() {
               key={p.id}
               onClick={() => handlePlayerClick(p)}
               style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '32px 1fr 50px 50px 60px 70px 80px', 
-                padding: '.75rem 1.2rem', 
-                borderBottom: '1px solid rgba(30,46,32,.4)', 
-                alignItems: 'center', 
-                gap: '.5rem', 
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                padding: '1rem 1.2rem',
+                borderBottom: '1px solid rgba(30,46,32,.4)',
+                gap: '.8rem',
                 transition: 'background .15s',
                 cursor: 'pointer',
                 background: selectedPlayer?.id === p.id ? 'rgba(0,230,118,.05)' : 'transparent'
               }}
             >
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#5A7A5E' }}>{i + 1}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}>
-                <div style={{ ...pc, width: '26px', height: '26px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.55rem', fontWeight: '800', flexShrink: 0, background: pc.bg }}>
-                  {p.position}
+              {/* Top row: Rank + Player Info + Form Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#5A7A5E', flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ ...pc, width: '26px', height: '26px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.55rem', fontWeight: '800', flexShrink: 0, background: pc.bg }}>
+                    {p.position}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{p.name}</div>
+                    <div style={{ fontSize: '.65rem', color: '#5A7A5E' }}>{p.team}</div>
+                  </div>
                 </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{p.name}</div>
-                  <div style={{ fontSize: '.65rem', color: '#5A7A5E' }}>{p.team}</div>
-                </div>
-              </div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: '#00E676', textAlign: 'center' }}>{p.goals ?? 0}</div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: '#64B5F6', textAlign: 'center' }}>{p.assists ?? 0}</div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700', textAlign: 'right' }}>₦{p.price?.toFixed(1) || 5.0}M</div>
-              
-              {/* Rating Display */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem' }}>
-                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '.95rem', color: '#FFD700' }}>
-                  {formatRating(p.current_rating || 5.0)}
-                </div>
-                <div style={{ fontSize: '.55rem', color: '#5A7A5E' }}>/10</div>
-              </div>
-
-              {/* Form Badge */}
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ ...styles.formBadge, borderColor: form.color, background: `${form.color}20`, color: form.color }}>
+                <span style={{ ...styles.formBadge, borderColor: form.color, background: `${form.color}20`, color: form.color, flexShrink: 0 }}>
                   {form.label}
                 </span>
+              </div>
+
+              {/* Bottom row: Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.8rem', fontSize: '.8rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Goals</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#00E676' }}>{p.goals ?? 0}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Assists</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#64B5F6' }}>{p.assists ?? 0}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Price</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#FFD700' }}>₦{p.price?.toFixed(1) || 5.0}M</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Rating</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.1rem', color: '#FFD700' }}>{formatRating(p.current_rating || 5.0)}</div>
+                </div>
               </div>
             </div>
           )
@@ -306,4 +313,4 @@ const styles = {
     fontSize: '1.2rem',
     fontWeight: 'bold'
   }
-}
+    }
