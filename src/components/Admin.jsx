@@ -1,112 +1,137 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const TABS = ['Teams', 'Players', 'Matches', 'Live Match', 'Payments', 'Announcements', 'Season']
+const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
+
 export default function Admin() {
-  const [matches, setMatches] = useState([])
+  const [tab, setTab] = useState('Teams')
+  const [teams, setTeams] = useState([])
   const [players, setPlayers] = useState([])
-  const [managers, setManagers] = useState([])
-  const [payments, setPayments] = useState([])
-  const [announcements, setAnnouncements] = useState([])
+  const [matches, setMatches] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState(null)
+  const [transferWindow, setTransferWindow] = useState('open')
+  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
+  const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
-  const [pForm, setPForm] = useState({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
-  const [mForm, setMForm] = useState({ home_team: '', away_team: '', kickoff_time: '', venue: '', matchday: 1 })
-  const [events, setEvents] = useState([])
-  const [selectedPlayer, setSelectedPlayer] = useState(null)
-  const [eventType, setEventType] = useState('')
+  const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
+  
+  // NEW STATES FOR LINEUPS & SEARCH
+  const [homeLineup, setHomeLineup] = useState([])
+  const [awayLineup, setAwayLineup] = useState([])
   const [homeTeamPlayers, setHomeTeamPlayers] = useState([])
   const [awayTeamPlayers, setAwayTeamPlayers] = useState([])
   const [eventSearch, setEventSearch] = useState('')
-  const [homeLineup, setHomeLineup] = useState([])
-  const [awayLineup, setAwayLineup] = useState([])
-  const [subMode, setSubMode] = useState(false)
-  const [subMinute, setSubMinute] = useState(45)
-  const [playerOut, setPlayerOut] = useState(null)
-  const [playerIn, setPlayerIn] = useState(null)
-  const [announceForm, setAnnounceForm] = useState({ title: '', body: '', is_pinned: false })
+  const [selectedEventPlayer, setSelectedEventPlayer] = useState(null)
 
-  const POSITION_PRICES = { GK: 5.0, DF: 6.0, MF: 7.0, FW: 8.0 }
-
-  useEffect(() => {
-    fetchAll()
-  }, [])
+  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { if (tab === 'Live Match') fetchLiveMatch() }, [tab])
 
   const fetchAll = async () => {
-    const [{ data: m }, { data: p }, { data: mg }, { data: py }, { data: a }] = await Promise.all([
-      supabase.from('matches').select('*').order('kickoff_time', { ascending: false }),
-      supabase.from('players').select('*').order('name'),
-      supabase.from('managers').select('*').order('total_points', { ascending: false }),
-      supabase.from('payments').select('*').order('created_at', { ascending: false }),
-      supabase.from('announcements').select('*').order('is_pinned', { ascending: false })
+    setLoading(true)
+    const [{ data: t }, { data: p }, { data: m }, { data: s }] = await Promise.all([
+      supabase.from('teams').select('*').order('name'),
+      supabase.from('players').select('*').order('position'),
+      supabase.from('matches').select('*').order('matchday', { ascending: false }),
+      supabase.from('settings').select('*')
     ])
-    setMatches(m || [])
+    setTeams(t || [])
     setPlayers(p || [])
-    setManagers(mg || [])
-    setPayments(py || [])
-    setAnnouncements(a || [])
+    setMatches(m || [])
+    const windowSetting = s?.find(x => x.id === 'transfer_window')
+    setTransferWindow(windowSetting?.value || 'open')
+    setLoading(false)
+  }
+
+  const fetchLiveMatch = async () => {
+    const { data } = await supabase.from('matches').select('*').eq('status', 'live').single()
+    if (data) {
+      setLiveMatch(data)
+      const { data: allPlayers } = await supabase.from('players').select('*').order('position')
+      setMatchPlayers(allPlayers || [])
+      
+      // Fetch team players for lineups
+      const homePlayers = allPlayers?.filter(p => p.team === data.home_team) || []
+      const awayPlayers = allPlayers?.filter(p => p.team === data.away_team) || []
+      setHomeTeamPlayers(homePlayers)
+      setAwayTeamPlayers(awayPlayers)
+    }
+  }
+
+  const showToast = (msg, bad = false) => {
+    setToast({ msg, bad })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const toggleTransferWindow = async () => {
+    const newValue = transferWindow === 'open' ? 'closed' : 'open'
+    await supabase.from('settings').update({ value: newValue }).eq('id', 'transfer_window')
+    setTransferWindow(newValue)
+    showToast(`Transfer window ${newValue === 'open' ? '✅ Opened' : '🔒 Closed'}`)
   }
 
   const addPlayer = async () => {
-    if (!pForm.name || !pForm.team) {
-      alert('Fill all fields')
-      return
-    }
-    const { error } = await supabase.from('players').insert([{ ...pForm, is_active: true }])
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert('✅ Player added')
-      setPForm({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
-      fetchAll()
-    }
+    if (!pForm.name || !pForm.team) return showToast('⚠ Fill all fields', true)
+    const { error } = await supabase.from('players').insert(pForm)
+    if (error) return showToast('❌ Failed to add player', true)
+    showToast(`✅ ${pForm.name} added!`)
+    setPForm({ name: '', position: 'GK', team: '', price: 5.0, goals: 0, assists: 0 })
+    fetchAll()
   }
 
-  const startMatch = async () => {
-    if (!mForm.home_team || !mForm.away_team) {
-      alert('Select both teams')
-      return
-    }
-    const { data, error } = await supabase.from('matches').insert([{ ...mForm, status: 'scheduled' }]).select()
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert('✅ Match created')
-      setMForm({ home_team: '', away_team: '', kickoff_time: '', venue: '', matchday: 1 })
-      fetchAll()
-    }
+  const deletePlayer = async (id, name) => {
+    if (!confirm(`Remove ${name}?`)) return
+    await supabase.from('players').delete().eq('id', id)
+    showToast(`${name} removed`)
+    fetchAll()
   }
 
-  const setupLineups = async () => {
-    if (!liveMatch) return
-    const [{ data: homePlayers }, { data: awayPlayers }] = await Promise.all([
-      supabase.from('players').select('*').eq('team', liveMatch.home_team).eq('is_active', true),
-      supabase.from('players').select('*').eq('team', liveMatch.away_team).eq('is_active', true)
-    ])
-    setHomeTeamPlayers(homePlayers || [])
-    setAwayTeamPlayers(awayPlayers || [])
-    setHomeLineup([])
-    setAwayLineup([])
+  const addMatch = async () => {
+    if (!mForm.home_team || !mForm.away_team) return showToast('⚠ Fill all fields', true)
+    const { error } = await supabase.from('matches').insert(mForm)
+    if (error) return showToast('❌ Failed to add match', true)
+    showToast('✅ Match created!')
+    setMForm({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
+    fetchAll()
   }
 
+  const goLive = async (match) => {
+    await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
+    setLiveMatch(match)
+    const { data } = await supabase.from('players').select('*').order('position')
+    setMatchPlayers(data || [])
+    const homePlayers = data?.filter(p => p.team === match.home_team) || []
+    const awayPlayers = data?.filter(p => p.team === match.away_team) || []
+    setHomeTeamPlayers(homePlayers)
+    setAwayTeamPlayers(awayPlayers)
+    showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
+    fetchAll()
+  }
+
+  // NEW FUNCTIONS FOR LINEUPS
   const toggleStarter = (playerId, team) => {
     if (team === 'home') {
-      const exists = homeLineup.find(p => p.player_id === playerId)
+      const exists = homeLineup.find(p => p === playerId)
       if (exists) {
-        setHomeLineup(homeLineup.filter(p => p.player_id !== playerId))
+        setHomeLineup(homeLineup.filter(p => p !== playerId))
       } else {
         if (homeLineup.length < 11) {
-          setHomeLineup([...homeLineup, { player_id: playerId, is_starting: true }])
+          setHomeLineup([...homeLineup, playerId])
         } else {
-          alert('❌ Maximum 11 starters per team')
+          showToast('❌ Max 11 starters', true)
         }
       }
     } else {
-      const exists = awayLineup.find(p => p.player_id === playerId)
+      const exists = awayLineup.find(p => p === playerId)
       if (exists) {
-        setAwayLineup(awayLineup.filter(p => p.player_id !== playerId))
+        setAwayLineup(awayLineup.filter(p => p !== playerId))
       } else {
         if (awayLineup.length < 11) {
-          setAwayLineup([...awayLineup, { player_id: playerId, is_starting: true }])
+          setAwayLineup([...awayLineup, playerId])
         } else {
-          alert('❌ Maximum 11 starters per team')
+          showToast('❌ Max 11 starters', true)
         }
       }
     }
@@ -114,192 +139,130 @@ export default function Admin() {
 
   const saveLineups = async () => {
     if (homeLineup.length !== 11 || awayLineup.length !== 11) {
-      alert('⚠️ Each team needs exactly 11 starters')
-      return
+      return showToast('⚠️ Each team needs 11 starters', true)
     }
 
     const lineupRecords = [
-      ...homeLineup.map(p => ({
+      ...homeLineup.map(pid => ({
         match_id: liveMatch.id,
         team_id: liveMatch.home_team,
-        player_id: p.player_id,
+        player_id: pid,
         is_starting: true
       })),
-      ...awayLineup.map(p => ({
+      ...awayLineup.map(pid => ({
         match_id: liveMatch.id,
         team_id: liveMatch.away_team,
-        player_id: p.player_id,
+        player_id: pid,
         is_starting: true
       }))
     ]
 
     const { error } = await supabase.from('match_lineups').insert(lineupRecords)
-    if (error) {
-      alert('❌ Error saving lineups: ' + error.message)
-      return
-    }
-
-    alert('✅ Lineups saved! Ready to start match.')
+    if (error) return showToast('❌ Error saving lineups', true)
+    showToast('✅ Lineups saved!')
   }
 
-  const goLive = async (match) => {
-    const { error } = await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
-    if (error) alert('Error: ' + error.message)
-    else {
-      setLiveMatch(match)
-      const { data: mp } = await supabase.from('players').select('*').in('team', [match.home_team, match.away_team])
-      setMatchPlayers(mp || [])
-      setupLineups()
-      fetchAll()
-    }
-  }
-
-  const logEvent = async () => {
-    if (!selectedPlayer || !eventType) {
-      alert('Select player and event type')
-      return
-    }
-    const { error } = await supabase.from('match_events').insert([{
-      match_id: liveMatch.id,
-      player_id: selectedPlayer.id,
-      event_type: eventType.toLowerCase().replace(' ', '_')
-    }])
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert(`✅ ${eventType} logged for ${selectedPlayer.name}`)
-      setSelectedPlayer(null)
-      setEventType('')
-      setEventSearch('')
-    }
-  }
-
-  const logSubstitution = async () => {
-    if (!playerOut || !playerIn) {
-      alert('⚠️ Select both players')
-      return
-    }
-
-    const { error: subError } = await supabase.from('match_events').insert({
-      match_id: liveMatch.id,
-      player_in_id: playerIn,
-      player_out_id: playerOut,
-      minute: subMinute,
-      event_type: 'substitution'
-    })
-
-    if (subError) {
-      alert('❌ Error logging substitution: ' + subError.message)
-      return
-    }
-
-    const playerInName = matchPlayers.find(p => p.id === playerIn)?.name
-    const playerOutName = matchPlayers.find(p => p.id === playerOut)?.name
-    alert(`✅ ${playerInName} on for ${playerOutName} (${subMinute}')`)
-    setPlayerOut(null)
-    setPlayerIn(null)
-    setSubMode(false)
-  }
-
+  // NEW FUNCTION FOR SMART PLAYER SEARCH
   const searchPlayers = (query, team) => {
     if (!query.trim()) return []
     const playerList = team === 'home' ? homeTeamPlayers : awayTeamPlayers
     const search = query.toLowerCase()
-    return playerList.filter(p => {
-      const matchName = p.name.toLowerCase().includes(search)
-      const matchPosition = p.position.toLowerCase().includes(search)
-      const matchTeam = p.team.toLowerCase().includes(search)
-      return matchName || matchPosition || matchTeam
-    })
+    return playerList.filter(p =>
+      p.name.toLowerCase().includes(search) ||
+      p.position.toLowerCase().includes(search) ||
+      p.team.toLowerCase().includes(search)
+    )
   }
 
   const homeSearchResults = searchPlayers(eventSearch, 'home')
   const awaySearchResults = searchPlayers(eventSearch, 'away')
 
+  // UPDATED EVENT LOGGING
+  const logEvent = async () => {
+    if (!selectedEventPlayer || !eventForm.event_type) {
+      return showToast('⚠ Select player and event', true)
+    }
+    const { error } = await supabase.from('match_events').insert({
+      match_id: liveMatch.id,
+      player_id: selectedEventPlayer.id,
+      event_type: eventForm.event_type
+    })
+    if (error) return showToast('❌ Failed to log event', true)
+    showToast(`✅ ${eventForm.event_type} logged for ${selectedEventPlayer.name}`)
+    setSelectedEventPlayer(null)
+    setEventForm({ player_id: '', event_type: 'goal', minute: '' })
+    setEventSearch('')
+  }
+
   const endMatch = async () => {
     if (!liveMatch) return
-    alert('⏳ Calculating points...')
-
-    const { data: lineups } = await supabase.from('match_lineups').select('*').eq('match_id', liveMatch.id)
-    const { data: matchEvents } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
-
+    showToast('⏳ Calculating points...')
+    const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
     const pointsMap = {
-      goal_fw: 6, goal_mf: 5, goal_df: 4, goal_gk: 4,
+      goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
       assist: 3, started: 1, played_90: 2,
-      yellow_card: -1, red_card: -3, own_goal: -3, penalty_missed: -2,
-      clean_sheet_gk: 4, clean_sheet_df: 4,
-      goal_conceded_gk: -1, goal_conceded_df: -1
+      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2,
+      clean_sheet_GK: 4, clean_sheet_DF: 4,
+      goal_conceded_GK: -1, goal_conceded_DF: -1
     }
-
     const playerPoints = {}
-
-    // Starting XI get +1
-    const startingPlayers = lineups?.filter(l => l.is_starting).map(l => l.player_id) || []
-    for (const playerId of startingPlayers) {
-      if (!playerPoints[playerId]) playerPoints[playerId] = 0
-      playerPoints[playerId] += pointsMap.started
-    }
-
-    // Process events
-    for (const event of matchEvents || []) {
+    for (const event of events || []) {
       if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
       const player = matchPlayers.find(p => p.id === event.player_id)
-      const pos = player?.position?.toLowerCase() || 'fw'
-
+      const pos = player?.position || 'FW'
       let pts = 0
       if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
       else if (event.event_type === 'assist') pts = pointsMap.assist
+      else if (event.event_type === 'started') pts = pointsMap.started
       else if (event.event_type === 'played_90') pts = pointsMap.played_90
-      else if (event.event_type === 'yellow_card') pts = pointsMap.yellow_card
-      else if (event.event_type === 'red_card') pts = pointsMap.red_card
+      else if (event.event_type === 'yellow') pts = pointsMap.yellow
+      else if (event.event_type === 'red') pts = pointsMap.red
       else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
       else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
-
       playerPoints[event.player_id] += pts
     }
-
-    // Clean sheet logic
-    const allGoals = (matchEvents || []).filter(e => e.event_type === 'goal').length
-    const teams = [...new Set(lineups?.map(l => l.team_id) || [])]
-
-    for (const teamId of teams) {
-      const teamLineup = lineups?.filter(l => l.team_id === teamId) || []
-      const defensiveLineup = teamLineup.filter(l => {
-        const p = matchPlayers.find(mp => mp.id === l.player_id)
-        return ['GK', 'DF'].includes(p?.position)
-      })
-
-      for (const player of defensiveLineup) {
-        if (!playerPoints[player.player_id]) playerPoints[player.player_id] = 0
-
-        const played = (matchEvents || []).find(e =>
-          e.player_id === player.player_id &&
-          (e.event_type === 'played_90' || e.event_type === 'substitution')
-        )
-
-        if (played) {
-          if (allGoals === 0) {
-            playerPoints[player.player_id] += pointsMap.clean_sheet_gk
-          } else {
-            playerPoints[player.player_id] += allGoals * pointsMap.goal_conceded_gk
+    
+    // CLEAN SHEET & GOALS CONCEDED LOGIC
+    const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
+    if (goalsScored === 0) {
+      for (const player of matchPlayers) {
+        if (['GK', 'DF'].includes(player.position)) {
+          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
+          if (played) {
+            if (!playerPoints[player.id]) playerPoints[player.id] = 0
+            playerPoints[player.id] += 4
+          }
+        }
+      }
+    } else {
+      for (const player of matchPlayers) {
+        if (['GK', 'DF'].includes(player.position)) {
+          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
+          if (played) {
+            if (!playerPoints[player.id]) playerPoints[player.id] = 0
+            playerPoints[player.id] += goalsScored * pointsMap.goal_conceded_GK
           }
         }
       }
     }
 
-    // Calculate manager points
     const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
     const managerSquads = {}
     for (const sq of allSquads || []) {
       if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
       managerSquads[sq.manager_id].push(sq)
     }
-
     for (const [managerId, squad] of Object.entries(managerSquads)) {
       let totalMatchPoints = 0
       for (const sq of squad) {
         const playerPts = playerPoints[sq.player_id] || 0
         const multiplier = sq.is_captain ? 2 : 1
         if (sq.is_starting) {
+          const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
+          if (!didPlay) {
+            const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
+            if (benchSub) { totalMatchPoints += playerPoints[benchSub.player_id] || 0; continue }
+          }
           totalMatchPoints += playerPts * multiplier
         }
       }
@@ -308,11 +271,9 @@ export default function Admin() {
       await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
       await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
     }
-
-    // Update player stats
     for (const [playerId] of Object.entries(playerPoints)) {
-      const playerGoals = (matchEvents || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
-      const playerAssists = (matchEvents || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
+      const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
+      const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
       if (playerGoals > 0 || playerAssists > 0) {
         const current = matchPlayers.find(p => p.id === playerId)
         await supabase.from('players').update({
@@ -321,277 +282,354 @@ export default function Admin() {
         }).eq('id', playerId)
       }
     }
-
     await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
-    alert('✅ Points calculated!')
+    showToast('✅ Points calculated!')
     setLiveMatch(null)
     fetchAll()
   }
 
-  const addAnnouncement = async () => {
-    if (!announceForm.title || !announceForm.body) {
-      alert('Fill all fields')
-      return
-    }
-    const { error } = await supabase.from('announcements').insert([announceForm])
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert('✅ Announcement posted')
-      setAnnounceForm({ title: '', body: '', is_pinned: false })
-      fetchAll()
-    }
-  }
-
-  const approvePayment = async (paymentId) => {
-    const { error } = await supabase.from('payments').update({ status: 'approved' }).eq('id', paymentId)
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert('✅ Payment approved')
-      fetchAll()
-    }
-  }
+  if (loading) return <div style={{ color: '#E8F5E9', padding: '2rem' }}>Loading...</div>
 
   return (
-    <div style={{ padding: '2rem', color: '#E8F5E9' }}>
-      <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', marginBottom: '2rem' }}>Admin Panel</h1>
+    <div style={{ padding: '1.5rem', color: '#E8F5E9', minHeight: '100vh' }}>
+      {toast && <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '.8rem 1.2rem', background: toast.bad ? '#EF9A9A' : '#00E676', color: toast.bad ? '#080C0A' : '#080C0A', borderRadius: '8px', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
 
-      {/* ADD PLAYER */}
-      <div style={styles.card}>
-        <h2 style={styles.cardTitle}>➕ Add Player</h2>
-        <input style={styles.input} placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
-        <select style={styles.input} value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
-          <option>GK</option>
-          <option>DF</option>
-          <option>MF</option>
-          <option>FW</option>
-        </select>
-        <input style={styles.input} placeholder="Team" value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })} />
-        <input style={styles.input} type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
-        <button style={{ ...styles.btn, background: '#00E676', color: '#080C0A', width: '100%' }} onClick={addPlayer}>Add Player</button>
-        <div style={{ marginTop: '1rem' }}>
-          <h3 style={{ fontSize: '.9rem', fontWeight: '700', marginBottom: '.5rem' }}>Players</h3>
-          {players.map(p => (
-            <div key={p.id} style={{ fontSize: '.8rem', padding: '.5rem', borderBottom: '1px solid #1E2E20', display: 'flex', justifyContent: 'space-between' }}>
-              <div>{p.name} ({p.position})</div>
-              <div style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#FFD700' }}>₦{p.price}M</div>
-            </div>
-          ))}
-        </div>
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ padding: '.6rem 1rem', background: tab === t ? '#00E676' : '#1E2E20', color: tab === t ? '#080C0A' : '#E8F5E9', border: 'none', borderRadius: '6px', fontWeight: tab === t ? '700' : '500', cursor: 'pointer' }}>
+            {t}
+          </button>
+        ))}
       </div>
 
-      {/* CREATE MATCH */}
-      <div style={styles.card}>
-        <h2 style={styles.cardTitle}>🏆 Create Match</h2>
-        <input style={styles.input} placeholder="Home Team" value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })} />
-        <input style={styles.input} placeholder="Away Team" value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })} />
-        <input style={styles.input} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
-        <input style={styles.input} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
-        <input style={styles.input} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
-        <button style={{ ...styles.btn, background: '#64B5F6', color: '#080C0A', width: '100%' }} onClick={startMatch}>Create Match</button>
-        <div style={{ marginTop: '1rem' }}>
-          <h3 style={{ fontSize: '.9rem', fontWeight: '700', marginBottom: '.5rem' }}>Upcoming Matches</h3>
-          {matches.filter(m => m.status !== 'completed').map(m => (
-            <div key={m.id} style={{ fontSize: '.75rem', padding: '.7rem', background: 'rgba(100,181,246,.1)', borderRadius: '6px', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>{m.home_team} vs {m.away_team} (GW{m.matchday})</div>
-              <button style={{ ...styles.btn, fontSize: '.7rem', padding: '.3rem .6rem' }} onClick={() => goLive(m)}>Go Live</button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* TEAM LINEUPS */}
-      {liveMatch && (
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>⚽ Select Starting XI</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-            {/* HOME */}
-            <div>
-              <h4 style={{ color: '#00E676', marginBottom: '.8rem', fontWeight: '700' }}>{liveMatch.home_team} ({homeLineup.length}/11)</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                {homeTeamPlayers.map(p => {
-                  const isSelected = homeLineup.find(l => l.player_id === p.id)
-                  return (
-                    <button key={p.id} onClick={() => toggleStarter(p.id, 'home')} style={{ ...styles.btn, background: isSelected ? 'rgba(0,230,118,.2)' : 'rgba(30,46,32,.5)', border: `2px solid ${isSelected ? '#00E676' : '#1E2E20'}`, color: isSelected ? '#00E676' : '#E8F5E9', justifyContent: 'space-between', fontWeight: isSelected ? '700' : '500' }}>
-                      <span>{p.name}</span>
-                      <span style={{ fontSize: '.7rem' }}>{p.position} {isSelected && '✓'}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            {/* AWAY */}
-            <div>
-              <h4 style={{ color: '#64B5F6', marginBottom: '.8rem', fontWeight: '700' }}>{liveMatch.away_team} ({awayLineup.length}/11)</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                {awayTeamPlayers.map(p => {
-                  const isSelected = awayLineup.find(l => l.player_id === p.id)
-                  return (
-                    <button key={p.id} onClick={() => toggleStarter(p.id, 'away')} style={{ ...styles.btn, background: isSelected ? 'rgba(100,181,246,.2)' : 'rgba(30,46,32,.5)', border: `2px solid ${isSelected ? '#64B5F6' : '#1E2E20'}`, color: isSelected ? '#64B5F6' : '#E8F5E9', justifyContent: 'space-between', fontWeight: isSelected ? '700' : '500' }}>
-                      <span>{p.name}</span>
-                      <span style={{ fontSize: '.7rem' }}>{p.position} {isSelected && '✓'}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-          <button style={{ ...styles.btn, background: '#00E676', color: '#080C0A', width: '100%', marginTop: '1rem', fontWeight: '700' }} onClick={saveLineups}>💾 Save Lineups & Start</button>
+      {/* TEAMS TAB */}
+      {tab === 'Teams' && (
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
+          <h2>Teams</h2>
+          {teams.map(t => <div key={t.id} style={{ padding: '.5rem', borderBottom: '1px solid #1E2E20' }}>{t.name}</div>)}
         </div>
       )}
 
-      {/* LIVE MATCH - EVENTS */}
-      {liveMatch && (
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>⚡ Log Match Events</h2>
-          
-          {/* Event type tabs */}
-          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-            {['GOAL', 'ASSIST', 'YELLOW CARD', 'RED CARD', 'OWN GOAL', 'PENALTY MISSED'].map(type => (
-              <button key={type} onClick={() => setEventType(type)} style={{ ...styles.btn, background: eventType === type ? 'rgba(0,230,118,.2)' : 'rgba(30,46,32,.5)', border: `1px solid ${eventType === type ? '#00E676' : '#1E2E20'}`, color: eventType === type ? '#00E676' : '#5A7A5E', fontSize: '.75rem', padding: '.4rem .8rem' }}>
-                {type}
-              </button>
+      {/* PLAYERS TAB */}
+      {tab === 'Players' && (
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>Players</h2>
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} placeholder="Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
+          <select style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
+            <option>GK</option>
+            <option>DF</option>
+            <option>MF</option>
+            <option>FW</option>
+          </select>
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} placeholder="Team" value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })} />
+          <button style={{ width: '100%', padding: '.8rem', background: '#00E676', color: '#080C0A', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', marginBottom: '1rem' }} onClick={addPlayer}>Add Player</button>
+          <div style={{ marginTop: '1rem' }}>
+            {players.map(p => (
+              <div key={p.id} style={{ padding: '.6rem', borderBottom: '1px solid #1E2E20', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '700' }}>{p.name}</div>
+                  <div style={{ fontSize: '.8rem', color: '#5A7A5E' }}>{p.position} • {p.team} • ₦{p.price}M</div>
+                </div>
+                <button onClick={() => deletePlayer(p.id, p.name)} style={{ padding: '.3rem .6rem', background: '#EF9A9A', color: '#080C0A', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '.7rem', fontWeight: '700' }}>Remove</button>
+              </div>
             ))}
           </div>
-
-          {/* Search input */}
-          <input
-            type="text"
-            placeholder="🔍 Search player (name, position, team)..."
-            value={eventSearch}
-            onChange={e => setEventSearch(e.target.value)}
-            style={{ ...styles.input, marginBottom: '1rem' }}
-          />
-
-          {/* Search results */}
-          {eventSearch.trim() && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-              {/* Home team */}
-              <div>
-                <h4 style={{ fontSize: '.85rem', fontWeight: '700', color: '#00E676', marginBottom: '.5rem' }}>{liveMatch.home_team} ({homeSearchResults.length})</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                  {homeSearchResults.length === 0 ? (
-                    <div style={{ color: '#5A7A5E', fontSize: '.75rem' }}>No players found</div>
-                  ) : homeSearchResults.map(p => (
-                    <div key={p.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                      <div style={{ flex: 1, padding: '.5rem', background: 'rgba(0,230,118,.05)', borderRadius: '4px', fontSize: '.75rem' }}>
-                        <div style={{ fontWeight: '700' }}>{p.name}</div>
-                        <div style={{ color: '#5A7A5E' }}>{p.position}</div>
-                      </div>
-                      <button onClick={() => { setSelectedPlayer(p); setEventSearch('') }} style={{ ...styles.btn, fontSize: '.7rem', padding: '.3rem .5rem' }}>✓</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Away team */}
-              <div>
-                <h4 style={{ fontSize: '.85rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>{liveMatch.away_team} ({awaySearchResults.length})</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                  {awaySearchResults.length === 0 ? (
-                    <div style={{ color: '#5A7A5E', fontSize: '.75rem' }}>No players found</div>
-                  ) : awaySearchResults.map(p => (
-                    <div key={p.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                      <div style={{ flex: 1, padding: '.5rem', background: 'rgba(100,181,246,.05)', borderRadius: '4px', fontSize: '.75rem' }}>
-                        <div style={{ fontWeight: '700' }}>{p.name}</div>
-                        <div style={{ color: '#5A7A5E' }}>{p.position}</div>
-                      </div>
-                      <button onClick={() => { setSelectedPlayer(p); setEventSearch('') }} style={{ ...styles.btn, fontSize: '.7rem', padding: '.3rem .5rem' }}>✓</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Selected player */}
-          {selectedPlayer && (
-            <div style={{ padding: '1rem', background: 'rgba(0,230,118,.1)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: '700' }}>{selectedPlayer.name}</div>
-                <div style={{ fontSize: '.8rem', color: '#5A7A5E' }}>{selectedPlayer.position} • {selectedPlayer.team}</div>
-              </div>
-              <button onClick={() => setSelectedPlayer(null)} style={{ ...styles.btn, background: '#EF9A9A', color: '#080C0A', padding: '.4rem .8rem' }}>Clear</button>
-            </div>
-          )}
-
-          <button style={{ ...styles.btn, background: selectedPlayer ? '#00E676' : '#5A7A5E', color: '#080C0A', width: '100%', fontWeight: '700', marginBottom: '1rem' }} onClick={logEvent} disabled={!selectedPlayer || !eventType}>
-            Log {eventType || 'Event'}
-          </button>
-
-          {/* Substitution */}
-          <button onClick={() => setSubMode(!subMode)} style={{ ...styles.btn, background: subMode ? '#EF9A9A' : '#64B5F6', color: '#080C0A', width: '100%', marginBottom: subMode ? '1rem' : 0, fontWeight: '700' }}>
-            {subMode ? '❌ Cancel Sub' : '🔄 Log Substitution'}
-          </button>
-
-          {subMode && (
-            <>
-              <input type="number" min="0" max="120" value={subMinute} onChange={e => setSubMinute(parseInt(e.target.value))} placeholder="Minute" style={styles.input} />
-              <select value={playerOut || ''} onChange={e => setPlayerOut(e.target.value)} style={styles.input}>
-                <option value="">Player OUT</option>
-                {matchPlayers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
-              </select>
-              <select value={playerIn || ''} onChange={e => setPlayerIn(e.target.value)} style={styles.input}>
-                <option value="">Player IN</option>
-                {matchPlayers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
-              </select>
-              <button onClick={logSubstitution} style={{ ...styles.btn, background: '#00E676', color: '#080C0A', width: '100%', fontWeight: '700' }}>✅ Confirm Sub</button>
-            </>
-          )}
-
-          <button style={{ ...styles.btn, background: '#EF9A9A', color: '#080C0A', width: '100%', marginTop: '1rem', fontWeight: '700' }} onClick={endMatch}>End Match & Calculate Points</button>
         </div>
       )}
 
-      {/* ANNOUNCEMENTS */}
-      <div style={styles.card}>
-        <h2 style={styles.cardTitle}>📢 Announcements</h2>
-        <input style={styles.input} placeholder="Title" value={announceForm.title} onChange={e => setAnnounceForm({ ...announceForm, title: e.target.value })} />
-        <textarea style={{ ...styles.input, minHeight: '100px' }} placeholder="Message" value={announceForm.body} onChange={e => setAnnounceForm({ ...announceForm, body: e.target.value })} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '1rem' }}>
-          <input type="checkbox" checked={announceForm.is_pinned} onChange={e => setAnnounceForm({ ...announceForm, is_pinned: e.target.checked })} />
-          📌 Pin this announcement
-        </label>
-        <button style={{ ...styles.btn, background: '#FFD700', color: '#080C0A', width: '100%' }} onClick={addAnnouncement}>Post Announcement</button>
-        <div style={{ marginTop: '1rem' }}>
-          {announcements.slice(0, 5).map(a => (
-            <div key={a.id} style={{ fontSize: '.75rem', padding: '.5rem', borderBottom: '1px solid #1E2E20' }}>
-              <div style={{ fontWeight: '700' }}>{a.is_pinned && '📌 '}{a.title}</div>
-              <div style={{ color: '#5A7A5E' }}>{a.body}</div>
-            </div>
-          ))}
+      {/* MATCHES TAB */}
+      {tab === 'Matches' && (
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>Create Match</h2>
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} placeholder="Home Team" value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })} />
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} placeholder="Away Team" value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })} />
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
+          <input style={{ width: '100%', padding: '.7rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' }} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
+          <button style={{ width: '100%', padding: '.8rem', background: '#64B5F6', color: '#080C0A', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', marginBottom: '1rem' }} onClick={addMatch}>Create Match</button>
+          <div style={{ marginTop: '1rem' }}>
+            <h3 style={{ marginBottom: '.8rem' }}>Scheduled Matches</h3>
+            {matches.filter(m => m.status !== 'completed').map(m => (
+              <div key={m.id} style={{ padding: '.7rem', background: 'rgba(100,181,246,.1)', borderRadius: '6px', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '.85rem' }}>
+                  <div style={{ fontWeight: '700' }}>{m.home_team} vs {m.away_team}</div>
+                  <div style={{ color: '#5A7A5E', fontSize: '.75rem' }}>GW{m.matchday}</div>
+                </div>
+                <button style={{ padding: '.4rem .8rem', background: m.status === 'live' ? '#FFD700' : '#00E676', color: '#080C0A', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '700', fontSize: '.75rem' }} onClick={() => goLive(m)}>
+                  {m.status === 'live' ? '🔴 LIVE' : 'Go Live'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* PAYMENTS */}
-      <div style={styles.card}>
-        <h2 style={styles.cardTitle}>💳 Payments</h2>
-        {payments.filter(p => p.status !== 'approved').map(p => (
-          <div key={p.id} style={{ fontSize: '.8rem', padding: '.8rem', background: 'rgba(255,215,0,.1)', borderRadius: '6px', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: '700' }}>₦{p.amount.toFixed(2)}</div>
-              <div style={{ color: '#5A7A5E', fontSize: '.7rem' }}>{p.manager_id}</div>
-            </div>
-            <button style={{ ...styles.btn, fontSize: '.7rem', padding: '.3rem .6rem' }} onClick={() => approvePayment(p.id)}>Approve</button>
-          </div>
-        ))}
-      </div>
+      {/* LIVE MATCH TAB */}
+      {tab === 'Live Match' && (
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
+          {!liveMatch ? (
+            <div style={{ color: '#5A7A5E' }}>No live match. Go to Matches tab to start one.</div>
+          ) : (
+            <>
+              <h2 style={{ marginBottom: '1rem' }}>🔴 {liveMatch.home_team} vs {liveMatch.away_team} - LIVE</h2>
 
-      {/* LEADERBOARD */}
-      <div style={styles.card}>
-        <h2 style={styles.cardTitle}>🏆 Leaderboard</h2>
-        {managers.slice(0, 10).map((m, i) => (
-          <div key={m.id} style={{ fontSize: '.85rem', padding: '.6rem', borderBottom: '1px solid #1E2E20', display: 'flex', justifyContent: 'space-between' }}>
-            <div>#{i + 1} {m.team_name}</div>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', color: '#00E676' }}>{m.total_points}pts</div>
-          </div>
-        ))}
-      </div>
+              {/* SELECT STARTING XI */}
+              <div style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(0,230,118,.05)', borderRadius: '8px', border: '1px solid rgba(0,230,118,.15)' }}>
+                <h3 style={{ marginBottom: '1rem', color: '#00E676' }}>⚽ Select Starting XI</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  {/* HOME TEAM */}
+                  <div>
+                    <h4 style={{ color: '#00E676', marginBottom: '.8rem', fontWeight: '700' }}>{liveMatch.home_team} ({homeLineup.length}/11)</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                      {homeTeamPlayers.map(p => {
+                        const isSelected = homeLineup.includes(p.id)
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => toggleStarter(p.id, 'home')}
+                            style={{
+                              padding: '.5rem .8rem',
+                              background: isSelected ? 'rgba(0,230,118,.2)' : 'rgba(30,46,32,.5)',
+                              border: `1px solid ${isSelected ? '#00E676' : '#1E2E20'}`,
+                              color: isSelected ? '#00E676' : '#E8F5E9',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: isSelected ? '700' : '500',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: '.8rem'
+                            }}
+                          >
+                            <span>{p.name}</span>
+                            <span>{isSelected && '✓'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* AWAY TEAM */}
+                  <div>
+                    <h4 style={{ color: '#64B5F6', marginBottom: '.8rem', fontWeight: '700' }}>{liveMatch.away_team} ({awayLineup.length}/11)</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                      {awayTeamPlayers.map(p => {
+                        const isSelected = awayLineup.includes(p.id)
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => toggleStarter(p.id, 'away')}
+                            style={{
+                              padding: '.5rem .8rem',
+                              background: isSelected ? 'rgba(100,181,246,.2)' : 'rgba(30,46,32,.5)',
+                              border: `1px solid ${isSelected ? '#64B5F6' : '#1E2E20'}`,
+                              color: isSelected ? '#64B5F6' : '#E8F5E9',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: isSelected ? '700' : '500',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: '.8rem'
+                            }}
+                          >
+                            <span>{p.name}</span>
+                            <span>{isSelected && '✓'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={saveLineups}
+                  style={{
+                    width: '100%',
+                    padding: '.8rem',
+                    background: '#00E676',
+                    color: '#080C0A',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    marginTop: '1rem'
+                  }}
+                >
+                  💾 Save Lineups
+                </button>
+              </div>
+
+              {/* LOG MATCH EVENTS */}
+              <div style={{ padding: '1rem', background: 'rgba(100,181,246,.05)', borderRadius: '8px', border: '1px solid rgba(100,181,246,.15)' }}>
+                <h3 style={{ marginBottom: '1rem', color: '#64B5F6' }}>⚡ Log Match Events</h3>
+
+                {/* EVENT TYPE BUTTONS */}
+                <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                  {['goal', 'assist', 'yellow', 'red', 'own_goal', 'penalty_missed'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setEventForm({ ...eventForm, event_type: type })}
+                      style={{
+                        padding: '.4rem .8rem',
+                        background: eventForm.event_type === type ? 'rgba(0,230,118,.2)' : 'rgba(30,46,32,.5)',
+                        border: `1px solid ${eventForm.event_type === type ? '#00E676' : '#1E2E20'}`,
+                        color: eventForm.event_type === type ? '#00E676' : '#E8F5E9',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: eventForm.event_type === type ? '700' : '500',
+                        fontSize: '.75rem',
+                        textTransform: 'capitalize'
+                      }}
+                    >
+                      {type.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* SEARCH INPUT */}
+                <input
+                  type="text"
+                  placeholder="🔍 Search player (name, position)..."
+                  value={eventSearch}
+                  onChange={e => setEventSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '.7rem',
+                    borderRadius: '8px',
+                    border: '1px solid #1E2E20',
+                    background: '#080C0A',
+                    color: '#E8F5E9',
+                    marginBottom: '1rem',
+                    outline: 'none'
+                  }}
+                />
+
+                {/* SEARCH RESULTS */}
+                {eventSearch.trim() && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                    {/* HOME RESULTS */}
+                    <div>
+                      <div style={{ fontSize: '.75rem', color: '#00E676', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.home_team} ({homeSearchResults.length})</div>
+                      {homeSearchResults.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }}
+                          style={{
+                            width: '100%',
+                            padding: '.5rem',
+                            background: 'rgba(0,230,118,.1)',
+                            border: '1px solid rgba(0,230,118,.2)',
+                            color: '#E8F5E9',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginBottom: '.3rem',
+                            fontSize: '.75rem',
+                            textAlign: 'left'
+                          }}
+                        >
+                          {p.name} ({p.position})
+                        </button>
+                      ))}
+                    </div>
+                    {/* AWAY RESULTS */}
+                    <div>
+                      <div style={{ fontSize: '.75rem', color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.away_team} ({awaySearchResults.length})</div>
+                      {awaySearchResults.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }}
+                          style={{
+                            width: '100%',
+                            padding: '.5rem',
+                            background: 'rgba(100,181,246,.1)',
+                            border: '1px solid rgba(100,181,246,.2)',
+                            color: '#E8F5E9',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginBottom: '.3rem',
+                            fontSize: '.75rem',
+                            textAlign: 'left'
+                          }}
+                        >
+                          {p.name} ({p.position})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SELECTED PLAYER */}
+                {selectedEventPlayer && (
+                  <div style={{ padding: '.8rem', background: 'rgba(0,230,118,.15)', borderRadius: '6px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '.85rem' }}>
+                      <div style={{ fontWeight: '700' }}>{selectedEventPlayer.name}</div>
+                      <div style={{ color: '#5A7A5E', fontSize: '.75rem' }}>{selectedEventPlayer.position} • {selectedEventPlayer.team}</div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedEventPlayer(null)}
+                      style={{
+                        padding: '.3rem .6rem',
+                        background: '#EF9A9A',
+                        color: '#080C0A',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        fontSize: '.7rem'
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={logEvent}
+                  style={{
+                    width: '100%',
+                    padding: '.8rem',
+                    background: selectedEventPlayer ? '#00E676' : '#5A7A5E',
+                    color: '#080C0A',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    cursor: selectedEventPlayer ? 'pointer' : 'not-allowed',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  Log {eventForm.event_type.replace('_', ' ')}
+                </button>
+              </div>
+
+              <button
+                onClick={endMatch}
+                style={{
+                  width: '100%',
+                  padding: '.8rem',
+                  background: '#EF9A9A',
+                  color: '#080C0A',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  marginTop: '1rem'
+                }}
+              >
+                End Match & Calculate Points
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* OTHER TABS (Payments, Announcements, Season) */}
+      {['Payments', 'Announcements', 'Season'].includes(tab) && (
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem' }}>
+          <h2>{tab}</h2>
+          <p style={{ color: '#5A7A5E' }}>Coming soon...</p>
+        </div>
+      )}
     </div>
   )
-}
-
-const styles = {
-  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem' },
-  cardTitle: { fontSize: '1rem', fontWeight: '800', marginBottom: '1rem', color: '#E8F5E9' },
-  input: { width: '100%', padding: '.7rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', marginBottom: '1rem', outline: 'none' },
-  btn: { padding: '.6rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', transition: 'all .2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }
       }
