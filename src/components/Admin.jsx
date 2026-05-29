@@ -17,7 +17,15 @@ export default function Admin() {
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
   const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
+// Add after: const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
 
+const [homeLineup, setHomeLineup] = useState([])
+const [awayLineup, setAwayLineup] = useState([])
+const [homeTeamPlayers, setHomeTeamPlayers] = useState([])
+const [awayTeamPlayers, setAwayTeamPlayers] = useState([])
+const [eventSearch, setEventSearch] = useState('')
+const [selectedEventPlayer, setSelectedEventPlayer] = useState(null)
+  
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'Live Match') fetchLiveMatch() }, [tab])
 
@@ -452,6 +460,67 @@ function PaymentsTab() {
       {payments.map(m => (
         <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.85rem 0', borderBottom: '1px solid #1E2E20', flexWrap: 'wrap', gap: '.5rem' }}>
           <div>
+            {/* SELECT STARTING XI */}
+<div style={{ ...styles.card, marginBottom: '1.5rem', background: 'rgba(0,230,118,.05)' }}>
+  <div style={styles.cardTitle}>⚽ Select Starting XI</div>
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+    {/* SEARCH INPUT */}
+<input style={{ ...styles.input, marginBottom: '1rem' }} placeholder="🔍 Search player (name, position)..." value={eventSearch} onChange={e => setEventSearch(e.target.value)} />
+
+{/* SEARCH RESULTS */}
+{eventSearch.trim() && (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+    <div>
+      <div style={{ fontSize: '.75rem', color: '#00E676', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.home_team}</div>
+      {homeSearchResults.map(p => (
+        <button key={p.id} onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }} style={{ width: '100%', padding: '.4rem .6rem', marginBottom: '.3rem', background: 'rgba(0,230,118,.1)', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#E8F5E9', fontSize: '.7rem', textAlign: 'left' }}>
+          {p.name} ({p.position})
+        </button>
+      ))}
+    </div>
+    <div>
+      <div style={{ fontSize: '.75rem', color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.away_team}</div>
+      {awaySearchResults.map(p => (
+        <button key={p.id} onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }} style={{ width: '100%', padding: '.4rem .6rem', marginBottom: '.3rem', background: 'rgba(100,181,246,.1)', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#E8F5E9', fontSize: '.7rem', textAlign: 'left' }}>
+          {p.name} ({p.position})
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+
+{/* SELECTED PLAYER */}
+{selectedEventPlayer && (
+  <div style={{ padding: '.6rem', background: 'rgba(0,230,118,.1)', borderRadius: '6px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span style={{ fontSize: '.8rem' }}>{selectedEventPlayer.name}</span>
+    <button onClick={() => setSelectedEventPlayer(null)} style={{ padding: '.2rem .4rem', background: '#EF9A9A', color: '#080C0A', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '.7rem' }}>Clear</button>
+  </div>
+)}
+    {/* HOME TEAM */}
+    <div>
+      <div style={{ color: '#00E676', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.home_team} ({homeLineup.length}/11)</div>
+      <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+        {homeTeamPlayers.map(p => (
+          <button key={p.id} onClick={() => toggleStarter(p.id, 'home')} style={{ padding: '.4rem .6rem', background: homeLineup.includes(p.id) ? 'rgba(0,230,118,.2)' : '#1E2E20', color: homeLineup.includes(p.id) ? '#00E676' : '#E8F5E9', border: 'none', borderRadius: '4px', cursor: 'pointer', textAlign: 'left', fontSize: '.75rem', fontWeight: homeLineup.includes(p.id) ? '700' : '500' }}>
+            {p.name} {homeLineup.includes(p.id) && '✓'}
+          </button>
+        ))}
+      </div>
+    </div>
+    {/* AWAY TEAM */}
+    <div>
+      <div style={{ color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.away_team} ({awayLineup.length}/11)</div>
+      <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+        {awayTeamPlayers.map(p => (
+          <button key={p.id} onClick={() => toggleStarter(p.id, 'away')} style={{ padding: '.4rem .6rem', background: awayLineup.includes(p.id) ? 'rgba(100,181,246,.2)' : '#1E2E20', color: awayLineup.includes(p.id) ? '#64B5F6' : '#E8F5E9', border: 'none', borderRadius: '4px', cursor: 'pointer', textAlign: 'left', fontSize: '.75rem', fontWeight: awayLineup.includes(p.id) ? '700' : '500' }}>
+            {p.name} {awayLineup.includes(p.id) && '✓'}
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+  <button onClick={saveLineups} style={{ ...styles.btn, width: '100%', background: '#00E676', color: '#080C0A', marginTop: '1rem' }}>💾 Save Lineups</button>
+</div>
             <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.full_name || m.display_name || 'Unknown'}</div>
             <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{m.matric_number} · {m.department}</div>
             {m.transaction_id && <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>TXN: {m.transaction_id}</div>}
