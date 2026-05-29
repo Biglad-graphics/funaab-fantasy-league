@@ -46,12 +46,18 @@ const [selectedEventPlayer, setSelectedEventPlayer] = useState(null)
   }
 
   const fetchLiveMatch = async () => {
-    const { data } = await supabase.from('matches').select('*').eq('status', 'live').single()
-    if (data) {
-      setLiveMatch(data)
-      const { data: players } = await supabase.from('players').select('*').order('position')
-      setMatchPlayers(players || [])
-    }
+  const { data } = await supabase.from('matches').select('*').eq('status', 'live').single()
+  if (data) {
+    setLiveMatch(data)
+    const { data: allPlayers } = await supabase.from('players').select('*').order('position')
+    setMatchPlayers(allPlayers || [])
+    
+    // NEW: Fetch team players for lineups
+    const homePlayers = allPlayers?.filter(p => p.team === data.home_team) || []
+    const awayPlayers = allPlayers?.filter(p => p.team === data.away_team) || []
+    setHomeTeamPlayers(homePlayers)
+    setAwayTeamPlayers(awayPlayers)
+  }
   }
 
   const showToast = (msg, bad = false) => {
