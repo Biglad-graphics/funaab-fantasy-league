@@ -71,6 +71,91 @@ const [selectedEventPlayer, setSelectedEventPlayer] = useState(null)
     setTransferWindow(newValue)
     showToast(`Transfer window ${newValue === 'open' ? '✅ Opened' : '🔒 Closed'}`)
   }
+  
+  // Toggle player as starter
+const toggleStarter = (playerId, team) => {
+  if (team === 'home') {
+    const exists = homeLineup.find(p => p === playerId)
+    if (exists) {
+      setHomeLineup(homeLineup.filter(p => p !== playerId))
+    } else {
+      if (homeLineup.length < 11) {
+        setHomeLineup([...homeLineup, playerId])
+      } else {
+        showToast('❌ Max 11 starters', true)
+      }
+    }
+  } else {
+    const exists = awayLineup.find(p => p === playerId)
+    if (exists) {
+      setAwayLineup(awayLineup.filter(p => p !== playerId))
+    } else {
+      if (awayLineup.length < 11) {
+        setAwayLineup([...awayLineup, playerId])
+      } else {
+        showToast('❌ Max 11 starters', true)
+      }
+    }
+  }
+}
+
+// Save lineups to database
+const saveLineups = async () => {
+  if (homeLineup.length !== 11 || awayLineup.length !== 11) {
+    return showToast('⚠️ Each team needs 11 starters', true)
+  }
+
+  const lineupRecords = [
+    ...homeLineup.map(pid => ({
+      match_id: liveMatch.id,
+      team_id: liveMatch.home_team,
+      player_id: pid,
+      is_starting: true
+    })),
+    ...awayLineup.map(pid => ({
+      match_id: liveMatch.id,
+      team_id: liveMatch.away_team,
+      player_id: pid,
+      is_starting: true
+    }))
+  ]
+
+  const { error } = await supabase.from('match_lineups').insert(lineupRecords)
+  if (error) return showToast('❌ Error saving lineups', true)
+  showToast('✅ Lineups saved!')
+}
+
+// Smart search for events
+const searchPlayers = (query, team) => {
+  if (!query.trim()) return []
+  const playerList = team === 'home' ? homeTeamPlayers : awayTeamPlayers
+  const search = query.toLowerCase()
+  return playerList.filter(p =>
+    p.name.toLowerCase().includes(search) ||
+    p.position.toLowerCase().includes(search) ||
+    p.team.toLowerCase().includes(search)
+  )
+}
+
+const homeSearchResults = searchPlayers(eventSearch, 'home')
+const awaySearchResults = searchPlayers(eventSearch, 'away')
+
+// Updated event logging with search
+const logEvent = async () => {
+  if (!selectedEventPlayer || !eventForm.event_type) {
+    return showToast('⚠ Select player and event', true)
+  }
+  const { error } = await supabase.from('match_events').insert({
+    match_id: liveMatch.id,
+    player_id: selectedEventPlayer.id,
+    event_type: eventForm.event_type
+  })
+  if (error) return showToast('❌ Failed to log event', true)
+  showToast(`✅ ${eventForm.event_type} logged for ${selectedEventPlayer.name}`)
+  setSelectedEventPlayer(null)
+  setEventForm({ player_id: '', event_type: 'goal', minute: '' })
+  setEventSearch('')
+        }
 
   const addPlayer = async () => {
     if (!pForm.name || !pForm.team) return showToast('⚠ Fill all fields', true)
