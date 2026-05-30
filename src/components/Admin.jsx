@@ -175,12 +175,19 @@ export default function Admin() {
   }
 
   const goLive = async (match) => {
-    await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
-    setLiveMatch(match)
-    const { data } = await supabase.from('players').select('*').order('position')
-    setMatchPlayers(data || [])
-    showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
-    fetchAll()
+  await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
+  setLiveMatch(match)
+  const { data } = await supabase.from('players').select('*').order('position')
+  setMatchPlayers(data || [])
+  
+  // NEW: Set team players for starting XI selection
+  const homePlayers = data?.filter(p => p.team === match.home_team) || []
+  const awayPlayers = data?.filter(p => p.team === match.away_team) || []
+  setHomeTeamPlayers(homePlayers)
+  setAwayTeamPlayers(awayPlayers)
+  
+  showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
+  fetchAll()
   }
 
   const endMatch = async () => {
