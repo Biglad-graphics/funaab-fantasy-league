@@ -198,8 +198,8 @@ export default function MyTeam({ manager }) {
                 </div>
               </div>
 
-              {/* Starters */}
-              <div style={styles.card}>
+{/* Starters */}
+<div style={styles.card}>
   <div style={styles.cardTitle}>⚽ Starting XI ({selected.filter(p => p.is_starting).length}/11)</div>
   {selected.filter(p => p.is_starting).map((p, i) => (
     <div key={p.id} style={styles.playerRow}>
@@ -226,7 +226,7 @@ export default function MyTeam({ manager }) {
   ))}
 </div>
 
-              {/* Bench */}
+{/* Bench */}
 {selected.filter(p => !p.is_starting).length > 0 && (
   <div style={{ ...styles.card, marginTop: '1.5rem' }}>
     <div style={styles.cardTitle}>🪑 Substitutes ({selected.filter(p => !p.is_starting).length}/4)</div>
