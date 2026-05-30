@@ -269,12 +269,9 @@ export default function Admin() {
         const playerPts = playerPoints[sq.player_id] || 0
         const multiplier = sq.is_captain ? 2 : 1
         if (sq.is_starting) {
-          const didPlay = (events || []).find(e => e.player_id === sq.player_id && ['started', 'played_90'].includes(e.event_type))
-          if (!didPlay) {
-            const benchSub = squad.find(b => !b.is_starting && b.player_id !== sq.player_id)
-            if (benchSub) { totalMatchPoints += playerPoints[benchSub.player_id] || 0; continue }
-          }
           totalMatchPoints += playerPts * multiplier
+        } else {
+          totalMatchPoints += (playerPts / 2) * multiplier
         }
       }
       const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
