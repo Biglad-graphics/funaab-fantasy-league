@@ -16,19 +16,40 @@ export default function MyTeam({ manager }) {
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
-    setLoading(true)
-    const [{ data: squadData }, { data: playerData }, { data: settings }] = await Promise.all([
-      supabase.from('squads').select('*, players(*)').eq('manager_id', manager.id),
-      supabase.from('players').select('*').eq('is_active', true).order('position'),
-      supabase.from('settings').select('*')
-    ])
-    setSquad(squadData || [])
-    setSelected((squadData || []).map(s => ({ ...s.players, is_captain: s.is_captain, is_starting: s.is_starting, squad_id: s.id })))
-    setPlayers(playerData || [])
-    const windowSetting = settings?.find(x => x.id === 'transfer_window')
-    setTransferWindow(windowSetting?.value || 'open')
-    setLoading(false)
+  setLoading(true)
+  const [{ data: squadData }, { data: playerData }, { data: settings }, { data: latestMatch }] = await Promise.all([
+    supabase.from('squads').select('*, players(*)').eq('manager_id', manager.id),
+    supabase.from('players').select('*').eq('is_active', true).order('position'),
+    supabase.from('settings').select('*'),
+    supabase.from('matches').select('*').eq('status', 'completed').order('created_at', { ascending: false }).limit(1).single()
+  ])
+  
+  // Fetch player points from last match
+  let playerMatchPoints = {}
+  if (latestMatch) {
+    const { data: pointsData } = await supabase
+      .from('player_match_points')
+      .select('*')
+      .eq('match_id', latestMatch.id)
+    
+    pointsData?.forEach(p => {
+      playerMatchPoints[p.player_id] = p.points_earned
+    })
   }
+  
+  setSquad(squadData || [])
+  setSelected((squadData || []).map(s => ({ 
+    ...s.players, 
+    is_captain: s.is_captain, 
+    is_starting: s.is_starting, 
+    squad_id: s.id,
+    last_match_points: playerMatchPoints[s.players.id] || 0
+  })))
+  setPlayers(playerData || [])
+  const windowSetting = settings?.find(x => x.id === 'transfer_window')
+  setTransferWindow(windowSetting?.value || 'open')
+  setLoading(false)
+}
 
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
@@ -302,69 +323,82 @@ function PitchView({ selected, onSetCaptain }) {
   const fw = starters.filter(p => p.position === 'FW')
 
   const PlayerCard = ({ player }) => (
-    <div
-      onClick={() => onSetCaptain(player.id)}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '.2rem',
-        cursor: 'pointer',
-        position: 'relative',
-        minWidth: '55px'
-      }}
-    >
-      <div style={{
-        width: '42px',
-        height: '42px',
-        borderRadius: '50%',
-        background: 'rgba(255,255,255,0.15)',
-        border: '2px solid rgba(255,255,255,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '.7rem',
-        fontWeight: '800',
-        color: '#fff',
-        position: 'relative',
-        backdropFilter: 'blur(4px)'
-      }}>
-        {player.name.charAt(0)}
-        {player.is_captain && (
-          <div style={{
-            position: 'absolute',
-            top: '-6px',
-            right: '-6px',
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            background: '#FFD700',
-            color: '#080C0A',
-            fontSize: '.55rem',
-            fontWeight: '900',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>C</div>
-        )}
-      </div>
-      <div style={{
-        background: 'rgba(0,0,0,0.7)',
-        color: '#fff',
-        fontSize: '.58rem',
-        fontWeight: '700',
-        padding: '.15rem .4rem',
-        borderRadius: '4px',
-        maxWidth: '60px',
-        textAlign: 'center',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap'
-      }}>
-        {player.name.split(' ').pop()}
-      </div>
+  <div
+    onClick={() => onSetCaptain(player.id)}
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '.2rem',
+      cursor: 'pointer',
+      position: 'relative',
+      minWidth: '55px'
+    }}
+  >
+    <div style={{
+      width: '42px',
+      height: '42px',
+      borderRadius: '50%',
+      background: 'rgba(255,255,255,0.15)',
+      border: '2px solid rgba(255,255,255,0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '.7rem',
+      fontWeight: '800',
+      color: '#fff',
+      position: 'relative',
+      backdropFilter: 'blur(4px)'
+    }}>
+      {player.name.charAt(0)}
+      {player.is_captain && (
+        <div style={{
+          position: 'absolute',
+          top: '-6px',
+          right: '-6px',
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          background: '#FFD700',
+          color: '#080C0A',
+          fontSize: '.55rem',
+          fontWeight: '900',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>C</div>
+      )}
     </div>
-  )
+    <div style={{
+      background: 'rgba(0,0,0,0.7)',
+      color: '#fff',
+      fontSize: '.58rem',
+      fontWeight: '700',
+      padding: '.15rem .4rem',
+      borderRadius: '4px',
+      maxWidth: '60px',
+      textAlign: 'center',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }}>
+      {player.name.split(' ').pop()}
+    </div>
+    {/* NEW: Show last match points */}
+    {player.last_match_points !== undefined && (
+      <div style={{
+        background: player.last_match_points > 0 ? '#00E676' : player.last_match_points < 0 ? '#EF9A9A' : '#5A7A5E',
+        color: '#080C0A',
+        fontSize: '.55rem',
+        fontWeight: '900',
+        padding: '.1rem .35rem',
+        borderRadius: '3px'
+      }}>
+        {player.last_match_points > 0 ? '+' : ''}{player.last_match_points}pts
+      </div>
+    )}
+  </div>
+)
 
   const Row = ({ players }) => (
     <div style={{
