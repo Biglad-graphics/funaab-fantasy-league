@@ -200,48 +200,61 @@ export default function MyTeam({ manager }) {
 
               {/* Starters */}
               <div style={styles.card}>
-                <div style={styles.cardTitle}>⚽ Starting XI ({selected.filter(p => p.is_starting).length}/11)</div>
-                {selected.filter(p => p.is_starting).map((p, i) => (
-                  <div key={p.id} style={styles.playerRow}>
-                    <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
-                    </div>
-                    {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                    <button style={{ ...styles.smBtn, color: '#64B5F6', border: '1px solid #64B5F6' }} onClick={() => toggleStarting(p.id)}>Move to Bench</button>
-                  </div>
-                ))}
-              </div>
+  <div style={styles.cardTitle}>⚽ Starting XI ({selected.filter(p => p.is_starting).length}/11)</div>
+  {selected.filter(p => p.is_starting).map((p, i) => (
+    <div key={p.id} style={styles.playerRow}>
+      <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
+        <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
+      </div>
+      {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
+      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
+      <button style={{ ...styles.smBtn, color: '#64B5F6', border: '1px solid #64B5F6' }} onClick={() => toggleStarting(p.id)}>Move to Bench</button>
+      {/* NEW: Sell Button */}
+      <button 
+        style={{ ...styles.smBtn, color: '#EF9A9A', border: '1px solid #EF9A9A' }} 
+        onClick={() => {
+          setSelected(prev => prev.filter(pl => pl.id !== p.id))
+          showToast(`Sold ${p.name} for ₦${p.price}M`)
+        }}
+        disabled={transferWindow === 'closed'}
+      >
+        Sell
+      </button>
+    </div>
+  ))}
+</div>
 
               {/* Bench */}
-              {selected.filter(p => !p.is_starting).length > 0 && (
-                <div style={{ ...styles.card, marginTop: '1.5rem' }}>
-                  <div style={styles.cardTitle}>🪑 Substitutes ({selected.filter(p => !p.is_starting).length}/4)</div>
-                  {selected.filter(p => !p.is_starting).map((p) => (
-                    <div key={p.id} style={styles.playerRow}>
-                      <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
-                        <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
-                      </div>
-                      {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
-                      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                      <button style={{ ...styles.smBtn, color: '#00E676', border: '1px solid #00E676' }} onClick={() => toggleStarting(p.id)}>Play</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button style={{ ...styles.btn, width: '100%', marginTop: '1.5rem' }} onClick={saveSquad} disabled={saving}>
-                {saving ? 'SAVING...' : 'SAVE SQUAD'}
-              </button>
-            </>
-          )}
+{selected.filter(p => !p.is_starting).length > 0 && (
+  <div style={{ ...styles.card, marginTop: '1.5rem' }}>
+    <div style={styles.cardTitle}>🪑 Substitutes ({selected.filter(p => !p.is_starting).length}/4)</div>
+    {selected.filter(p => !p.is_starting).map((p) => (
+      <div key={p.id} style={styles.playerRow}>
+        <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
+          <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
         </div>
-      )}
-
+        {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
+        <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
+        <button style={{ ...styles.smBtn, color: '#00E676', border: '1px solid #00E676' }} onClick={() => toggleStarting(p.id)}>Play</button>
+        {/* NEW: Sell Button */}
+        <button 
+          style={{ ...styles.smBtn, color: '#EF9A9A', border: '1px solid #EF9A9A' }} 
+          onClick={() => {
+            setSelected(prev => prev.filter(pl => pl.id !== p.id))
+            showToast(`Sold ${p.name} for ₦${p.price}M`)
+          }}
+          disabled={transferWindow === 'closed'}
+        >
+          Sell
+        </button>
+      </div>
+    ))}
+  </div>
+)}
       {/* PICK PLAYERS VIEW */}
       {view === 'pick' && (
         <div>
