@@ -175,137 +175,39 @@ export default function Admin() {
   }
 
   const goLive = async (match) => {
-  await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
-  setLiveMatch(match)
-  const { data } = await supabase.from('players').select('*').order('position')
-  setMatchPlayers(data || [])
-  
-  // NEW: Set team players for starting XI selection
-  const homePlayers = data?.filter(p => p.team === match.home_team) || []
-  const awayPlayers = data?.filter(p => p.team === match.away_team) || []
-  setHomeTeamPlayers(homePlayers)
-  setAwayTeamPlayers(awayPlayers)
-  
-  showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
-  fetchAll()
+    await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
+    setLiveMatch(match)
+    const { data } = await supabase.from('players').select('*').order('position')
+    setMatchPlayers(data || [])
+    const homePlayers = data?.filter(p => p.team === match.home_team) || []
+    const awayPlayers = data?.filter(p => p.team === match.away_team) || []
+    setHomeTeamPlayers(homePlayers)
+    setAwayTeamPlayers(awayPlayers)
+    showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
+    fetchAll()
   }
 
-const endMatch = async () => {
-  if (!liveMatch) return
-  showToast('⏳ Calculating points...')
-  
-  const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
-  
-  const pointsMap = {
-    goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
-    assist: 3, started: 1, played_90: 2,
-    yellow: -1, red: -3, own_goal: -3, penalty_missed: -2,
-    clean_sheet_GK: 4, clean_sheet_DF: 4,
-    goal_conceded_GK: -1, goal_conceded_DF: -1
-  }
-  
-  const playerPoints = {}
-  
-  // Calculate points from events
-  for (const event of events || []) {
-    if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
-    const player = matchPlayers.find(p => p.id === event.player_id)
-    const pos = player?.position || 'FW'
+  const endMatch = async () => {
+    if (!liveMatch) return
+    showToast('⏳ Calculating points...')
     
-    let pts = 0
-    if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
-    else if (event.event_type === 'assist') pts = pointsMap.assist
-    else if (event.event_type === 'yellow') pts = pointsMap.yellow
-    else if (event.event_type === 'red') pts = pointsMap.red
-    else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
-    else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
+    const { data: events } = await supabase.from('match_events').select('*').eq('match_id', liveMatch.id)
     
-    playerPoints[event.player_id] += pts
-  }
-  
-  // Clean sheet logic
-  const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
-  if (goalsScored === 0) {
-    for (const player of matchPlayers) {
-      if (['GK', 'DF'].includes(player.position)) {
-        const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-        if (played) {
-          if (!playerPoints[player.id]) playerPoints[player.id] = 0
-          playerPoints[player.id] += 4
-        }
-      }
+    const pointsMap = {
+      goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
+      assist: 3, started: 1, played_90: 2,
+      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2,
+      clean_sheet_GK: 4, clean_sheet_DF: 4,
+      goal_conceded_GK: -1, goal_conceded_DF: -1
     }
-  } else {
-    for (const player of matchPlayers) {
-      if (['GK', 'DF'].includes(player.position)) {
-        const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-        if (played) {
-          if (!playerPoints[player.id]) playerPoints[player.id] = 0
-          playerPoints[player.id] += goalsScored * -1
-        }
-      }
-    }
-  }
-
-  // Save player points for this match
-  for (const [playerId, points] of Object.entries(playerPoints)) {
-    await supabase.from('player_match_points').insert({
-      player_id: playerId,
-      match_id: liveMatch.id,
-      matchday: liveMatch.matchday,
-      points_earned: points
-    })
-  }
-
-  // Calculate manager points
-  const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
-  const managerSquads = {}
-  for (const sq of allSquads || []) {
-    if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
-    managerSquads[sq.manager_id].push(sq)
-  }
-
-  for (const [managerId, squad] of Object.entries(managerSquads)) {
-    let totalMatchPoints = 0
-    for (const sq of squad) {
-      const playerPts = playerPoints[sq.player_id] || 0
-      const multiplier = sq.is_captain ? 2 : 1
-      if (sq.is_starting) {
-        totalMatchPoints += playerPts * multiplier
-      } else {
-        totalMatchPoints += (playerPts / 2) * multiplier
-      }
-    }
-    const currentManager = allSquads.find(s => s.manager_id === managerId)?.managers
-    const newTotal = (currentManager?.total_points || 0) + totalMatchPoints
-    await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
-    await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
-  }
-
-  // Update player goals/assists
-  for (const [playerId] of Object.entries(playerPoints)) {
-    const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
-    const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
-    if (playerGoals > 0 || playerAssists > 0) {
-      const current = matchPlayers.find(p => p.id === playerId)
-      await supabase.from('players').update({
-        goals: (current?.goals || 0) + playerGoals,
-        assists: (current?.assists || 0) + playerAssists
-      }).eq('id', playerId)
-    }
-  }
-
-  await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
-  showToast('✅ Points calculated!')
-  setLiveMatch(null)
-  fetchAll()
-      }
-
+    
     const playerPoints = {}
+    
     for (const event of events || []) {
       if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
       const player = matchPlayers.find(p => p.id === event.player_id)
       const pos = player?.position || 'FW'
+      
       let pts = 0
       if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
       else if (event.event_type === 'assist') pts = pointsMap.assist
@@ -315,9 +217,11 @@ const endMatch = async () => {
       else if (event.event_type === 'red') pts = pointsMap.red
       else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
       else if (event.event_type === 'penalty_missed') pts = pointsMap.penalty_missed
+      
       playerPoints[event.player_id] += pts
     }
     
+    // Clean sheet logic
     const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
     if (goalsScored === 0) {
       for (const player of matchPlayers) {
@@ -341,12 +245,24 @@ const endMatch = async () => {
       }
     }
 
+    // Save player points for this match
+    for (const [playerId, points] of Object.entries(playerPoints)) {
+      await supabase.from('player_match_points').insert({
+        player_id: playerId,
+        match_id: liveMatch.id,
+        matchday: liveMatch.matchday,
+        points_earned: points
+      })
+    }
+
+    // Calculate manager points
     const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
     const managerSquads = {}
     for (const sq of allSquads || []) {
       if (!managerSquads[sq.manager_id]) managerSquads[sq.manager_id] = []
       managerSquads[sq.manager_id].push(sq)
     }
+
     for (const [managerId, squad] of Object.entries(managerSquads)) {
       let totalMatchPoints = 0
       for (const sq of squad) {
@@ -366,6 +282,8 @@ const endMatch = async () => {
       await supabase.from('managers').update({ total_points: newTotal }).eq('id', managerId)
       await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
     }
+
+    // Update player goals/assists
     for (const [playerId] of Object.entries(playerPoints)) {
       const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
       const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
@@ -377,6 +295,7 @@ const endMatch = async () => {
         }).eq('id', playerId)
       }
     }
+
     await supabase.from('matches').update({ status: 'completed' }).eq('id', liveMatch.id)
     showToast('✅ Points calculated!')
     setLiveMatch(null)
@@ -595,7 +514,6 @@ const endMatch = async () => {
               <div style={{ ...styles.card, marginBottom: '1.5rem', background: 'rgba(0,230,118,.05)' }}>
                 <div style={styles.cardTitle}>⚽ Select Starting XI</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* HOME TEAM */}
                   <div>
                     <div style={{ color: '#00E676', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.home_team} ({homeLineup.length}/11)</div>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
@@ -606,7 +524,6 @@ const endMatch = async () => {
                       ))}
                     </div>
                   </div>
-                  {/* AWAY TEAM */}
                   <div>
                     <div style={{ color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.away_team} ({awayLineup.length}/11)</div>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
@@ -624,11 +541,7 @@ const endMatch = async () => {
               {/* ADD MATCH EVENT */}
               <div style={styles.card}>
                 <div style={styles.cardTitle}>Add Match Event</div>
-                
-                {/* SEARCH INPUT */}
                 <input style={{ ...styles.input, marginBottom: '1rem' }} placeholder="🔍 Search player (name, position)..." value={eventSearch} onChange={e => setEventSearch(e.target.value)} />
-
-                {/* SEARCH RESULTS */}
                 {eventSearch.trim() && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                     <div>
@@ -649,15 +562,12 @@ const endMatch = async () => {
                     </div>
                   </div>
                 )}
-
-                {/* SELECTED PLAYER */}
                 {selectedEventPlayer && (
                   <div style={{ padding: '.6rem', background: 'rgba(0,230,118,.1)', borderRadius: '6px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '.8rem' }}>{selectedEventPlayer.name}</span>
                     <button onClick={() => setSelectedEventPlayer(null)} style={{ padding: '.2rem .4rem', background: '#EF9A9A', color: '#080C0A', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '.7rem' }}>Clear</button>
                   </div>
                 )}
-
                 <div style={styles.form}>
                   <select style={styles.input} value={eventForm.event_type} onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}>
                     <option value="goal">⚽ Goal</option>
@@ -821,7 +731,7 @@ function AnnouncementsTab() {
                 <div style={{ fontSize: '.75rem', color: '#5A7A5E', marginTop: '.3rem' }}>{a.body}</div>
                 <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>{new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
               </div>
-              <div style={{ display: 'flex', gap:'.4rem' }}>
+              <div style={{ display: 'flex', gap: '.4rem' }}>
                 <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: a.is_pinned ? 'rgba(255,215,0,.1)' : 'transparent', border: '1px solid #FFD700', color: '#FFD700', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => togglePin(a.id, a.is_pinned)}>{a.is_pinned ? 'Unpin' : 'Pin'}</button>
                 <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
               </div>
@@ -955,4 +865,4 @@ const styles = {
   badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
   toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-      }
+}
