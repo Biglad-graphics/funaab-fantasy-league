@@ -240,7 +240,6 @@ export default function MyTeam({ manager }) {
         {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
         <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
         <button style={{ ...styles.smBtn, color: '#00E676', border: '1px solid #00E676' }} onClick={() => toggleStarting(p.id)}>Play</button>
-        {/* NEW: Sell Button */}
         <button 
           style={{ ...styles.smBtn, color: '#EF9A9A', border: '1px solid #EF9A9A' }} 
           onClick={() => {
@@ -255,6 +254,11 @@ export default function MyTeam({ manager }) {
     ))}
   </div>
 )}
+
+<button style={{ ...styles.btn, width: '100%', marginTop: '1.5rem' }} onClick={saveSquad} disabled={saving}>
+  {saving ? 'SAVING...' : 'SAVE SQUAD'}
+</button>
+              
       {/* PICK PLAYERS VIEW */}
       {view === 'pick' && (
         <div>
