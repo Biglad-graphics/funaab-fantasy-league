@@ -16,13 +16,9 @@ export default function Admin() {
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
-  const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal', minute: '' })
-  const [homeLineup, setHomeLineup] = useState([])
-  const [awayLineup, setAwayLineup] = useState([])
-  const [homeTeamPlayers, setHomeTeamPlayers] = useState([])
-  const [awayTeamPlayers, setAwayTeamPlayers] = useState([])
-  const [eventSearch, setEventSearch] = useState('')
-  const [selectedEventPlayer, setSelectedEventPlayer] = useState(null)
+  const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal' })
+  const [playersStarted, setPlayersStarted] = useState([])
+  const [playersSubs, setPlayersSubs] = useState([])
   
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'Live Match') fetchLiveMatch() }, [tab])
@@ -49,10 +45,8 @@ export default function Admin() {
       setLiveMatch(data)
       const { data: allPlayers } = await supabase.from('players').select('*').order('position')
       setMatchPlayers(allPlayers || [])
-      const homePlayers = allPlayers?.filter(p => p.team === data.home_team) || []
-      const awayPlayers = allPlayers?.filter(p => p.team === data.away_team) || []
-      setHomeTeamPlayers(homePlayers)
-      setAwayTeamPlayers(awayPlayers)
+      setPlayersStarted([])
+      setPlayersSubs([])
     }
   }
 
@@ -66,87 +60,6 @@ export default function Admin() {
     await supabase.from('settings').update({ value: newValue }).eq('id', 'transfer_window')
     setTransferWindow(newValue)
     showToast(`Transfer window ${newValue === 'open' ? '✅ Opened' : '🔒 Closed'}`)
-  }
-  
-  const toggleStarter = (playerId, team) => {
-    if (team === 'home') {
-      const exists = homeLineup.find(p => p === playerId)
-      if (exists) {
-        setHomeLineup(homeLineup.filter(p => p !== playerId))
-      } else {
-        if (homeLineup.length < 11) {
-          setHomeLineup([...homeLineup, playerId])
-        } else {
-          showToast('❌ Max 11 starters', true)
-        }
-      }
-    } else {
-      const exists = awayLineup.find(p => p === playerId)
-      if (exists) {
-        setAwayLineup(awayLineup.filter(p => p !== playerId))
-      } else {
-        if (awayLineup.length < 11) {
-          setAwayLineup([...awayLineup, playerId])
-        } else {
-          showToast('❌ Max 11 starters', true)
-        }
-      }
-    }
-  }
-
-  const saveLineups = async () => {
-    if (homeLineup.length !== 11 || awayLineup.length !== 11) {
-      return showToast('⚠️ Each team needs 11 starters', true)
-    }
-
-    const lineupRecords = [
-      ...homeLineup.map(pid => ({
-        match_id: liveMatch.id,
-        team_id: liveMatch.home_team,
-        player_id: pid,
-        is_starting: true
-      })),
-      ...awayLineup.map(pid => ({
-        match_id: liveMatch.id,
-        team_id: liveMatch.away_team,
-        player_id: pid,
-        is_starting: true
-      }))
-    ]
-
-    const { error } = await supabase.from('match_lineups').insert(lineupRecords)
-    if (error) return showToast('❌ Error saving lineups', true)
-    showToast('✅ Lineups saved!')
-  }
-
-  const searchPlayers = (query, team) => {
-    if (!query.trim()) return []
-    const playerList = team === 'home' ? homeTeamPlayers : awayTeamPlayers
-    const search = query.toLowerCase()
-    return playerList.filter(p =>
-      p.name.toLowerCase().includes(search) ||
-      p.position.toLowerCase().includes(search) ||
-      p.team.toLowerCase().includes(search)
-    )
-  }
-
-  const homeSearchResults = searchPlayers(eventSearch, 'home')
-  const awaySearchResults = searchPlayers(eventSearch, 'away')
-
-  const logEvent = async () => {
-    if (!selectedEventPlayer || !eventForm.event_type) {
-      return showToast('⚠ Select player and event', true)
-    }
-    const { error } = await supabase.from('match_events').insert({
-      match_id: liveMatch.id,
-      player_id: selectedEventPlayer.id,
-      event_type: eventForm.event_type
-    })
-    if (error) return showToast('❌ Failed to log event', true)
-    showToast(`✅ ${eventForm.event_type} logged for ${selectedEventPlayer.name}`)
-    setSelectedEventPlayer(null)
-    setEventForm({ player_id: '', event_type: 'goal', minute: '' })
-    setEventSearch('')
   }
 
   const addPlayer = async () => {
@@ -179,12 +92,56 @@ export default function Admin() {
     setLiveMatch(match)
     const { data } = await supabase.from('players').select('*').order('position')
     setMatchPlayers(data || [])
-    const homePlayers = data?.filter(p => p.team === match.home_team) || []
-    const awayPlayers = data?.filter(p => p.team === match.away_team) || []
-    setHomeTeamPlayers(homePlayers)
-    setAwayTeamPlayers(awayPlayers)
+    setPlayersStarted([])
+    setPlayersSubs([])
     showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
     fetchAll()
+  }
+
+  const togglePlayerStarted = (playerId) => {
+    if (playersStarted.includes(playerId)) {
+      setPlayersStarted(playersStarted.filter(id => id !== playerId))
+    } else {
+      setPlayersStarted([...playersStarted, playerId])
+    }
+  }
+
+  const togglePlayerSub = (playerId) => {
+    if (playersSubs.includes(playerId)) {
+      setPlayersSubs(playersSubs.filter(id => id !== playerId))
+    } else {
+      setPlayersSubs([...playersSubs, playerId])
+    }
+  }
+
+  const addEvent = async () => {
+    if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
+    const { error } = await supabase.from('match_events').insert({
+      match_id: liveMatch.id,
+      player_id: eventForm.player_id,
+      event_type: eventForm.event_type
+    })
+    if (error) return showToast('❌ Failed to add event', true)
+    
+    if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
+      const player = matchPlayers.find(p => p.id === eventForm.player_id)
+      const isHome = liveMatch.home_team === player?.team
+      const homeGoal = eventForm.event_type === 'own_goal' ? !isHome : isHome
+      const { data: currentMatch } = await supabase.from('matches').select('home_score, away_score').eq('id', liveMatch.id).single()
+      await supabase.from('matches').update({
+        home_score: homeGoal ? (currentMatch.home_score + 1) : currentMatch.home_score,
+        away_score: !homeGoal ? (currentMatch.away_score + 1) : currentMatch.away_score
+      }).eq('id', liveMatch.id)
+      setLiveMatch(prev => ({
+        ...prev,
+        home_score: homeGoal ? (prev.home_score || 0) + 1 : (prev.home_score || 0),
+        away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
+      }))
+    }
+    
+    const player = matchPlayers.find(p => p.id === eventForm.player_id)
+    showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
+    setEventForm({ player_id: '', event_type: 'goal' })
   }
 
   const endMatch = async () => {
@@ -196,13 +153,12 @@ export default function Admin() {
     const pointsMap = {
       goal_FW: 6, goal_MF: 5, goal_DF: 4, goal_GK: 4,
       assist: 3, started: 1, played_90: 2,
-      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2,
-      clean_sheet_GK: 4, clean_sheet_DF: 4,
-      goal_conceded_GK: -1, goal_conceded_DF: -1
+      yellow: -1, red: -3, own_goal: -3, penalty_missed: -2
     }
     
     const playerPoints = {}
     
+    // Calculate points from events
     for (const event of events || []) {
       if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
       const player = matchPlayers.find(p => p.id === event.player_id)
@@ -211,8 +167,6 @@ export default function Admin() {
       let pts = 0
       if (event.event_type === 'goal') pts = pointsMap[`goal_${pos}`] || 4
       else if (event.event_type === 'assist') pts = pointsMap.assist
-      else if (event.event_type === 'started') pts = pointsMap.started
-      else if (event.event_type === 'played_90') pts = pointsMap.played_90
       else if (event.event_type === 'yellow') pts = pointsMap.yellow
       else if (event.event_type === 'red') pts = pointsMap.red
       else if (event.event_type === 'own_goal') pts = pointsMap.own_goal
@@ -220,14 +174,33 @@ export default function Admin() {
       
       playerPoints[event.player_id] += pts
     }
+
+    // Award starting players
+    for (const playerId of playersStarted) {
+      if (!playerPoints[playerId]) playerPoints[playerId] = 0
+      playerPoints[playerId] += pointsMap.started // +1 for starting
+    }
+
+    // Award played 90 mins
+    for (const playerId of playersStarted) {
+      if (!playerPoints[playerId]) playerPoints[playerId] = 0
+      playerPoints[playerId] += pointsMap.played_90 // +2 for 90 mins
+    }
+
+    // Award subs (if they came on)
+    for (const playerId of playersSubs) {
+      if (!playerPoints[playerId]) playerPoints[playerId] = 0
+      // Subs get 1 point for appearing, can't get 90 mins bonus
+      playerPoints[playerId] += 1
+    }
     
     // Clean sheet logic
     const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
     if (goalsScored === 0) {
       for (const player of matchPlayers) {
         if (['GK', 'DF'].includes(player.position)) {
-          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-          if (played) {
+          const isStarter = playersStarted.includes(player.id)
+          if (isStarter) {
             if (!playerPoints[player.id]) playerPoints[player.id] = 0
             playerPoints[player.id] += 4
           }
@@ -236,8 +209,8 @@ export default function Admin() {
     } else {
       for (const player of matchPlayers) {
         if (['GK', 'DF'].includes(player.position)) {
-          const played = (events || []).find(e => e.player_id === player.id && ['started', 'played_90'].includes(e.event_type))
-          if (played) {
+          const isStarter = playersStarted.includes(player.id)
+          if (isStarter) {
             if (!playerPoints[player.id]) playerPoints[player.id] = 0
             playerPoints[player.id] += goalsScored * -1
           }
@@ -297,48 +270,6 @@ export default function Admin() {
     showToast('✅ Points calculated!')
     setLiveMatch(null)
     fetchAll()
-  }
-
-  const addEvent = async () => {
-    if (!eventForm.player_id || !liveMatch) return showToast('⚠ Select a player', true)
-    const { error } = await supabase.from('match_events').insert({
-      match_id: liveMatch.id,
-      player_id: eventForm.player_id,
-      event_type: eventForm.event_type,
-      minute: eventForm.minute ? parseInt(eventForm.minute) : null
-    })
-    if (error) return showToast('❌ Failed to add event', true)
-    if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
-      const player = matchPlayers.find(p => p.id === eventForm.player_id)
-      const isHome = liveMatch.home_team === player?.team
-      const homeGoal = eventForm.event_type === 'own_goal' ? !isHome : isHome
-      const { data: currentMatch } = await supabase.from('matches').select('home_score, away_score').eq('id', liveMatch.id).single()
-      await supabase.from('matches').update({
-        home_score: homeGoal ? (currentMatch.home_score + 1) : currentMatch.home_score,
-        away_score: !homeGoal ? (currentMatch.away_score + 1) : currentMatch.away_score
-      }).eq('id', liveMatch.id)
-      setLiveMatch(prev => ({
-        ...prev,
-        home_score: homeGoal ? (prev.home_score || 0) + 1 : (prev.home_score || 0),
-        away_score: !homeGoal ? (prev.away_score || 0) + 1 : (prev.away_score || 0)
-      }))
-    }
-    const player = matchPlayers.find(p => p.id === eventForm.player_id)
-    showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
-    setEventForm({ player_id: '', event_type: 'goal', minute: '' })
-  }
-
-  const markAllAppearances = async (eventType) => {
-    if (!liveMatch || matchPlayers.length === 0) return showToast('⚠ No players loaded', true)
-    const rows = matchPlayers.map(p => ({
-      match_id: liveMatch.id,
-      player_id: p.id,
-      event_type: eventType,
-      minute: eventType === 'played_90' ? 90 : 1
-    }))
-    const { error } = await supabase.from('match_events').insert(rows)
-    if (error) return showToast('❌ Failed', true)
-    showToast(`✅ All players marked as ${eventType}!`)
   }
 
   if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
@@ -490,179 +421,110 @@ export default function Admin() {
             </div>
           ) : (
             <>
-              <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem' }}>
-                      {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
-                    </div>
-                    <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
-                  </div>
-                  <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A' }} onClick={endMatch}>End Match & Calculate Points</button>
+              {/* Score Display */}
+              <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.5rem' }}>🔴 LIVE</div>
+                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', marginBottom: '.5rem', lineHeight: 1 }}>
+                  {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>▶ Mark All Started</button>
-                <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>✅ Mark All Played 90</button>
+                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
               </div>
 
-              {/* SELECT STARTING XI */}
-              <div style={{ ...styles.card, marginBottom: '1.5rem', background: 'rgba(0,230,118,.05)' }}>
-                <div style={styles.cardTitle}>⚽ Select Starting XI</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* Mark Players */}
+              <div style={{ ...styles.card, marginBottom: '1.5rem', background: 'rgba(100,181,246,.05)', border: '1px solid rgba(100,181,246,.15)' }}>
+                <div style={styles.cardTitle}>👥 Mark Players</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem', marginBottom: '1rem' }}>
                   <div>
-                    <div style={{ color: '#00E676', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.home_team} ({homeLineup.length}/11)</div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                      {homeTeamPlayers.map(p => (
-                        <button key={p.id} onClick={() => toggleStarter(p.id, 'home')} style={{ padding: '.4rem .6rem', background: homeLineup.includes(p.id) ? 'rgba(0,230,118,.2)' : '#1E2E20', color: homeLineup.includes(p.id) ? '#00E676' : '#E8F5E9', border: 'none', borderRadius: '4px', cursor: 'pointer', textAlign: 'left', fontSize: '.75rem', fontWeight: homeLineup.includes(p.id) ? '700' : '500' }}>
-                          {p.name} {homeLineup.includes(p.id) && '✓'}
-                        </button>
+                    <div style={{ fontSize: '.72rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>Starting XI ({playersStarted.length})</div>
+                    <select 
+                      multiple 
+                      style={{ ...styles.input, height: '150px' }} 
+                      value={playersStarted} 
+                      onChange={e => setPlayersStarted(Array.from(e.target.selectedOptions, op => op.value))}
+                    >
+                      {matchPlayers.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.position})</option>
                       ))}
-                    </div>
+                    </select>
+                    <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>Hold Ctrl/Cmd to select multiple</div>
                   </div>
                   <div>
-                    <div style={{ color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem', fontSize: '.85rem' }}>{liveMatch.away_team} ({awayLineup.length}/11)</div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                      {awayTeamPlayers.map(p => (
-                        <button key={p.id} onClick={() => toggleStarter(p.id, 'away')} style={{ padding: '.4rem .6rem', background: awayLineup.includes(p.id) ? 'rgba(100,181,246,.2)' : '#1E2E20', color: awayLineup.includes(p.id) ? '#64B5F6' : '#E8F5E9', border: 'none', borderRadius: '4px', cursor: 'pointer', textAlign: 'left', fontSize: '.75rem', fontWeight: awayLineup.includes(p.id) ? '700' : '500' }}>
-                          {p.name} {awayLineup.includes(p.id) && '✓'}
-                        </button>
+                    <div style={{ fontSize: '.72rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>Substitutes ({playersSubs.length})</div>
+                    <select 
+                      multiple 
+                      style={{ ...styles.input, height: '150px' }} 
+                      value={playersSubs} 
+                      onChange={e => setPlayersSubs(Array.from(e.target.selectedOptions, op => op.value))}
+                    >
+                      {matchPlayers.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.position})</option>
                       ))}
-                    </div>
+                    </select>
+                    <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>Subs get half points</div>
                   </div>
                 </div>
-                <button onClick={saveLineups} style={{ ...styles.btn, width: '100%', background: '#00E676', color: '#080C0A', marginTop: '1rem' }}>💾 Save Lineups</button>
               </div>
 
-              {/* ADD MATCH EVENT */}
+              {/* Log Event */}
               <div style={styles.card}>
-                <div style={styles.cardTitle}>Add Match Event</div>
-                <input style={{ ...styles.input, marginBottom: '1rem' }} placeholder="🔍 Search player (name, position)..." value={eventSearch} onChange={e => setEventSearch(e.target.value)} />
-                {eventSearch.trim() && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                    <div>
-                      <div style={{ fontSize: '.75rem', color: '#00E676', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.home_team}</div>
-                      {homeSearchResults.map(p => (
-                        <button key={p.id} onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }} style={{ width: '100%', padding: '.4rem .6rem', marginBottom: '.3rem', background: 'rgba(0,230,118,.1)', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#E8F5E9', fontSize: '.7rem', textAlign: 'left' }}>
-                          {p.name} ({p.position})
-                        </button>
+                <div style={styles.cardTitle}>⚽ Log Event</div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
+                  {/* Player Dropdown */}
+                  <div>
+                    <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Player</label>
+                    <select 
+                      style={styles.input} 
+                      value={eventForm.player_id} 
+                      onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}
+                    >
+                      <option value="">-- Choose Player --</option>
+                      {matchPlayers.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.position} · {p.team})
+                        </option>
                       ))}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '.75rem', color: '#64B5F6', fontWeight: '700', marginBottom: '.5rem' }}>{liveMatch.away_team}</div>
-                      {awaySearchResults.map(p => (
-                        <button key={p.id} onClick={() => { setSelectedEventPlayer(p); setEventSearch('') }} style={{ width: '100%', padding: '.4rem .6rem', marginBottom: '.3rem', background: 'rgba(100,181,246,.1)', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#E8F5E9', fontSize: '.7rem', textAlign: 'left' }}>
-                          {p.name} ({p.position})
-                        </button>
-                      ))}
-                    </div>
+                    </select>
                   </div>
-                )}
-                {selectedEventPlayer && (
-                  <div style={{ padding: '.6rem', background: 'rgba(0,230,118,.1)', borderRadius: '6px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '.8rem' }}>{selectedEventPlayer.name}</span>
-{tab === 'Live Match' && (
-  <div>
-    {!liveMatch ? (
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>No Live Match</div>
-        <p style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.5rem' }}>Go to Matches tab and click "Go Live".</p>
-      </div>
-    ) : (
-      <>
-        {/* Score Display */}
-        <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.5rem' }}>🔴 LIVE</div>
-          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', marginBottom: '.5rem', lineHeight: 1 }}>
-            {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
-          </div>
-          <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
-        </div>
 
-        {/* Quick Actions */}
-        <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>
-            ▶ Mark All Started
-          </button>
-          <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>
-            ✅ Mark All Played 90
-          </button>
-        </div>
+                  {/* Event Type Dropdown */}
+                  <div>
+                    <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Event</label>
+                    <select 
+                      style={styles.input} 
+                      value={eventForm.event_type} 
+                      onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}
+                    >
+                      <option value="goal">⚽ Goal</option>
+                      <option value="assist">🅰 Assist</option>
+                      <option value="yellow">🟨 Yellow Card</option>
+                      <option value="red">🟥 Red Card</option>
+                      <option value="own_goal">😬 Own Goal</option>
+                      <option value="penalty_missed">❌ Penalty Missed</option>
+                    </select>
+                  </div>
 
-        {/* Log Event */}
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>⚽ Log Event</div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-            {/* Player Dropdown */}
-            <div>
-              <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Player</label>
-              <select 
-                style={styles.input} 
-                value={eventForm.player_id} 
-                onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}
+                  {/* Log Button */}
+                  <button 
+                    style={{ ...styles.btn, width: '100%' }} 
+                    onClick={addEvent}
+                  >
+                    Log Event
+                  </button>
+                </div>
+              </div>
+
+              {/* End Match */}
+              <button 
+                style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', width: '100%', marginTop: '1.5rem', padding: '1rem' }} 
+                onClick={endMatch}
               >
-                <option value="">-- Choose Player --</option>
-                {matchPlayers.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.position} · {p.team})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Event Type Dropdown */}
-            <div>
-              <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Event</label>
-              <select 
-                style={styles.input} 
-                value={eventForm.event_type} 
-                onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}
-              >
-                <option value="goal">⚽ Goal</option>
-                <option value="assist">🅰 Assist</option>
-                <option value="yellow">🟨 Yellow Card</option>
-                <option value="red">🟥 Red Card</option>
-                <option value="own_goal">😬 Own Goal</option>
-                <option value="penalty_missed">❌ Penalty Missed</option>
-              </select>
-            </div>
-
-            {/* Log Button */}
-            <button 
-              style={{ ...styles.btn, width: '100%' }} 
-              onClick={addEvent}
-            >
-              Log Event
-            </button>
-          </div>
+                🏁 End Match & Calculate Points
+              </button>
+            </>
+          )}
         </div>
-
-        {/* Logged Events */}
-        {matchPlayers.filter(p => {
-          const hasEvent = true
-          return hasEvent
-        }).length > 0 && (
-          <div style={{ ...styles.card, marginTop: '1.5rem' }}>
-            <div style={styles.cardTitle}>📋 Events Logged</div>
-            <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
-              <p>Events are being logged and will be calculated when you end the match.</p>
-            </div>
-          </div>
-        )}
-
-        {/* End Match */}
-        <button 
-          style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', width: '100%', marginTop: '1.5rem', padding: '1rem' }} 
-          onClick={endMatch}
-        >
-          🏁 End Match & Calculate Points
-        </button>
-      </>
-    )}
-  </div>
-)}
+      )}
 
       {tab === 'Payments' && <PaymentsTab />}
       {tab === 'Announcements' && <AnnouncementsTab />}
@@ -939,4 +801,4 @@ const styles = {
   badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
   toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-}
+    }
