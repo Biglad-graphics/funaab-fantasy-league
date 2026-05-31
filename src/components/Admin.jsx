@@ -17,8 +17,8 @@ export default function Admin() {
   const [liveMatch, setLiveMatch] = useState(null)
   const [matchPlayers, setMatchPlayers] = useState([])
   const [eventForm, setEventForm] = useState({ player_id: '', event_type: 'goal' })
-  const [playersStarted, setPlayersStarted] = useState([])
-  const [playersSubs, setPlayersSubs] = useState([])
+  const [playerPresence, setPlayerPresence] = useState({})
+  const [searchPlayer, setSearchPlayer] = useState('')
   
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'Live Match') fetchLiveMatch() }, [tab])
@@ -45,8 +45,8 @@ export default function Admin() {
       setLiveMatch(data)
       const { data: allPlayers } = await supabase.from('players').select('*').order('position')
       setMatchPlayers(allPlayers || [])
-      setPlayersStarted([])
-      setPlayersSubs([])
+      setPlayerPresence({})
+      setSearchPlayer('')
     }
   }
 
@@ -92,26 +92,21 @@ export default function Admin() {
     setLiveMatch(match)
     const { data } = await supabase.from('players').select('*').order('position')
     setMatchPlayers(data || [])
-    setPlayersStarted([])
-    setPlayersSubs([])
+    setPlayerPresence({})
+    setSearchPlayer('')
     showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
     fetchAll()
   }
 
-  const togglePlayerStarted = (playerId) => {
-    if (playersStarted.includes(playerId)) {
-      setPlayersStarted(playersStarted.filter(id => id !== playerId))
-    } else {
-      setPlayersStarted([...playersStarted, playerId])
-    }
-  }
-
-  const togglePlayerSub = (playerId) => {
-    if (playersSubs.includes(playerId)) {
-      setPlayersSubs(playersSubs.filter(id => id !== playerId))
-    } else {
-      setPlayersSubs([...playersSubs, playerId])
-    }
+  const togglePlayerHalf = (playerId, half) => {
+    setPlayerPresence(prev => ({
+      ...prev,
+      [playerId]: {
+        first_half: prev[playerId]?.first_half || false,
+        second_half: prev[playerId]?.second_half || false,
+        [half]: !(prev[playerId]?.[half] || false)
+      }
+    }))
   }
 
   const addEvent = async () => {
@@ -121,7 +116,7 @@ export default function Admin() {
       player_id: eventForm.player_id,
       event_type: eventForm.event_type
     })
-    if (error) return showToast('❌ Failed to add event', true)
+    if (error) return showToast('❌ Failed to log event', true)
     
     if (eventForm.event_type === 'goal' || eventForm.event_type === 'own_goal') {
       const player = matchPlayers.find(p => p.id === eventForm.player_id)
@@ -142,6 +137,7 @@ export default function Admin() {
     const player = matchPlayers.find(p => p.id === eventForm.player_id)
     showToast(`✅ ${eventForm.event_type} — ${player?.name}`)
     setEventForm({ player_id: '', event_type: 'goal' })
+    setSearchPlayer('')
   }
 
   const endMatch = async () => {
@@ -158,7 +154,6 @@ export default function Admin() {
     
     const playerPoints = {}
     
-    // Calculate points from events
     for (const event of events || []) {
       if (!playerPoints[event.player_id]) playerPoints[event.player_id] = 0
       const player = matchPlayers.find(p => p.id === event.player_id)
@@ -175,32 +170,24 @@ export default function Admin() {
       playerPoints[event.player_id] += pts
     }
 
-    // Award starting players
-    for (const playerId of playersStarted) {
+    for (const [playerId, presence] of Object.entries(playerPresence)) {
       if (!playerPoints[playerId]) playerPoints[playerId] = 0
-      playerPoints[playerId] += pointsMap.started // +1 for starting
-    }
-
-    // Award played 90 mins
-    for (const playerId of playersStarted) {
-      if (!playerPoints[playerId]) playerPoints[playerId] = 0
-      playerPoints[playerId] += pointsMap.played_90 // +2 for 90 mins
-    }
-
-    // Award subs (if they came on)
-    for (const playerId of playersSubs) {
-      if (!playerPoints[playerId]) playerPoints[playerId] = 0
-      // Subs get 1 point for appearing, can't get 90 mins bonus
-      playerPoints[playerId] += 1
+      
+      if (presence.first_half && presence.second_half) {
+        playerPoints[playerId] += pointsMap.started + pointsMap.played_90
+      } else if (presence.first_half) {
+        playerPoints[playerId] += pointsMap.started
+      } else if (presence.second_half) {
+        playerPoints[playerId] += 1
+      }
     }
     
-    // Clean sheet logic
     const goalsScored = (events || []).filter(e => e.event_type === 'goal').length
     if (goalsScored === 0) {
       for (const player of matchPlayers) {
         if (['GK', 'DF'].includes(player.position)) {
-          const isStarter = playersStarted.includes(player.id)
-          if (isStarter) {
+          const presence = playerPresence[player.id]
+          if (presence && (presence.first_half || presence.second_half)) {
             if (!playerPoints[player.id]) playerPoints[player.id] = 0
             playerPoints[player.id] += 4
           }
@@ -209,8 +196,8 @@ export default function Admin() {
     } else {
       for (const player of matchPlayers) {
         if (['GK', 'DF'].includes(player.position)) {
-          const isStarter = playersStarted.includes(player.id)
-          if (isStarter) {
+          const presence = playerPresence[player.id]
+          if (presence && (presence.first_half || presence.second_half)) {
             if (!playerPoints[player.id]) playerPoints[player.id] = 0
             playerPoints[player.id] += goalsScored * -1
           }
@@ -218,7 +205,6 @@ export default function Admin() {
       }
     }
 
-    // Save player points for this match
     for (const [playerId, points] of Object.entries(playerPoints)) {
       await supabase.from('player_match_points').insert({
         player_id: playerId,
@@ -228,7 +214,6 @@ export default function Admin() {
       })
     }
 
-    // Calculate manager points
     const { data: allSquads } = await supabase.from('squads').select('*, managers(id, total_points)')
     const managerSquads = {}
     for (const sq of allSquads || []) {
@@ -253,7 +238,6 @@ export default function Admin() {
       await supabase.from('matchday_points').insert({ manager_id: managerId, matchday: liveMatch.matchday, points: totalMatchPoints })
     }
 
-    // Update player goals/assists
     for (const [playerId] of Object.entries(playerPoints)) {
       const playerGoals = (events || []).filter(e => e.player_id === playerId && e.event_type === 'goal').length
       const playerAssists = (events || []).filter(e => e.player_id === playerId && e.event_type === 'assist').length
@@ -287,131 +271,6 @@ export default function Admin() {
         ))}
       </div>
 
-      {tab === 'Teams' && (
-        <div>
-          <div style={{ ...styles.card, marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: transferWindow === 'open' ? 'rgba(0,230,118,.04)' : 'rgba(239,154,154,.04)', borderColor: transferWindow === 'open' ? 'rgba(0,230,118,.2)' : 'rgba(239,154,154,.2)' }}>
-            <div>
-              <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem' }}>Transfer Window</div>
-              <div style={{ fontSize: '.78rem', color: '#5A7A5E' }}>{transferWindow === 'open' ? 'Managers can currently make transfers' : 'Transfers are locked for all managers'}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}>
-              <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: transferWindow === 'open' ? 'rgba(0,230,118,.1)' : 'rgba(239,154,154,.1)', color: transferWindow === 'open' ? '#00E676' : '#EF9A9A' }}>
-                {transferWindow === 'open' ? '✅ OPEN' : '🔒 CLOSED'}
-              </span>
-              <button style={{ ...styles.btn, background: transferWindow === 'open' ? 'rgba(239,154,154,.1)' : 'rgba(0,230,118,.1)', color: transferWindow === 'open' ? '#EF9A9A' : '#00E676', border: `1px solid ${transferWindow === 'open' ? '#EF9A9A' : '#00E676'}` }} onClick={toggleTransferWindow}>
-                {transferWindow === 'open' ? 'Close Window' : 'Open Window'}
-              </button>
-            </div>
-          </div>
-          <div style={styles.card}>
-            <div style={styles.cardTitle}>All Teams ({teams.length})</div>
-            {teams.map(t => (
-              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.7rem 0', borderBottom: '1px solid #1E2E20' }}>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{t.name}</div>
-                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{t.short_name}</div>
-                </div>
-                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>{players.filter(p => p.team === t.name).length} players</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ ...styles.card, marginTop: '1rem' }}>
-            <div style={styles.cardTitle}>Players Per Team</div>
-            {teams.map(t => {
-              const teamPlayers = players.filter(p => p.team === t.name)
-              return (
-                <div key={t.id} style={{ marginBottom: '1.2rem', paddingBottom: '1.2rem', borderBottom: '1px solid #1E2E20' }}>
-                  <div style={{ fontWeight: '800', fontSize: '.82rem', color: '#00E676', marginBottom: '.5rem' }}>{t.name} ({teamPlayers.length})</div>
-                  {teamPlayers.length === 0 ? (
-                    <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>No players added yet</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
-                      {teamPlayers.map(p => (
-                        <span key={p.id} style={{ fontSize: '.72rem', background: '#1E2E20', padding: '.2rem .6rem', borderRadius: '100px', color: '#E8F5E9' }}>{p.position} · {p.name}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {tab === 'Players' && (
-        <div>
-          <div style={styles.card}>
-            <div style={styles.cardTitle}>Add New Player</div>
-            <div style={styles.form}>
-              <input style={styles.input} placeholder="Player Name" value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} />
-              <select style={styles.input} value={pForm.position} onChange={e => setPForm({ ...pForm, position: e.target.value, price: POSITION_PRICES[e.target.value] })}>
-                <option>GK</option><option>DF</option><option>MF</option><option>FW</option>
-              </select>
-              <select style={styles.input} value={pForm.team} onChange={e => setPForm({ ...pForm, team: e.target.value })}>
-                <option value="">Select Team</option>
-                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-              </select>
-              <input style={styles.input} type="number" placeholder="Price (₦M)" value={pForm.price} onChange={e => setPForm({ ...pForm, price: parseFloat(e.target.value) })} />
-              <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addPlayer}>Add Player</button>
-            </div>
-          </div>
-          <div style={{ ...styles.card, marginTop: '1rem' }}>
-            <div style={styles.cardTitle}>All Players ({players.length})</div>
-            {players.map(p => (
-              <div key={p.id} style={styles.row}>
-                <div style={{ ...styles.posBadge, background: p.position === 'GK' ? 'rgba(255,215,0,.1)' : p.position === 'DF' ? 'rgba(0,230,118,.1)' : p.position === 'MF' ? 'rgba(100,181,246,.1)' : 'rgba(239,154,154,.1)', color: p.position === 'GK' ? '#FFD700' : p.position === 'DF' ? '#00E676' : p.position === 'MF' ? '#64B5F6' : '#EF9A9A' }}>{p.position}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name}</div>
-                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team}</div>
-                </div>
-                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>{p.goals ?? 0}⚽ {p.assists ?? 0}🅰</div>
-                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .6rem', fontSize: '.72rem' }} onClick={() => deletePlayer(p.id, p.name)}>✕</button>
-              </div>
-            ))}
-            {players.length === 0 && <div style={{ padding: '1.5rem', color: '#5A7A5E', textAlign: 'center' }}>No players yet</div>}
-          </div>
-        </div>
-      )}
-
-      {tab === 'Matches' && (
-        <div>
-          <div style={styles.card}>
-            <div style={styles.cardTitle}>Create Match</div>
-            <div style={styles.form}>
-              <select style={styles.input} value={mForm.home_team} onChange={e => setMForm({ ...mForm, home_team: e.target.value })}>
-                <option value="">Home Team</option>
-                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-              </select>
-              <select style={styles.input} value={mForm.away_team} onChange={e => setMForm({ ...mForm, away_team: e.target.value })}>
-                <option value="">Away Team</option>
-                {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-              </select>
-              <input style={styles.input} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
-              <input style={styles.input} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
-              <input style={styles.input} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
-              <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addMatch}>Create Match</button>
-            </div>
-          </div>
-          <div style={{ ...styles.card, marginTop: '1rem' }}>
-            <div style={styles.cardTitle}>All Matches</div>
-            {matches.map(m => (
-              <div key={m.id} style={styles.row}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
-                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>GW{m.matchday} · {m.venue || 'TBD'}</div>
-                </div>
-                <span style={{ ...styles.badge, background: m.status === 'live' ? 'rgba(0,230,118,.1)' : m.status === 'completed' ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#5A7A5E' : '#64B5F6' }}>{m.status}</span>
-                {m.status === 'scheduled' && (
-                  <button style={{ ...styles.btn, padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => { goLive(m); setTab('Live Match') }}>Go Live</button>
-                )}
-              </div>
-            ))}
-            {matches.length === 0 && <div style={{ padding: '1.5rem', color: '#5A7A5E', textAlign: 'center' }}>No matches yet</div>}
-          </div>
-        </div>
-      )}
-
       {tab === 'Live Match' && (
         <div>
           {!liveMatch ? (
@@ -421,73 +280,147 @@ export default function Admin() {
             </div>
           ) : (
             <>
-              {/* Score Display */}
               <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1.5rem' }}>
-                <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.5rem' }}>🔴 LIVE</div>
-                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', marginBottom: '.5rem', lineHeight: 1 }}>
-                  {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
+                <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' }}>🔴 LIVE</div>
+                <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', marginBottom: '.5rem', lineHeight: 1 }}>
+                  {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0}—{liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
                 </div>
-                <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
+                <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
               </div>
 
-              {/* Mark Players */}
-              <div style={{ ...styles.card, marginBottom: '1.5rem', background: 'rgba(100,181,246,.05)', border: '1px solid rgba(100,181,246,.15)' }}>
-                <div style={styles.cardTitle}>👥 Mark Players</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem', marginBottom: '1rem' }}>
-                  <div>
-                    <div style={{ fontSize: '.72rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>Starting XI ({playersStarted.length})</div>
-                    <select 
-                      multiple 
-                      style={{ ...styles.input, height: '150px' }} 
-                      value={playersStarted} 
-                      onChange={e => setPlayersStarted(Array.from(e.target.selectedOptions, op => op.value))}
-                    >
-                      {matchPlayers.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.position})</option>
-                      ))}
-                    </select>
-                    <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>Hold Ctrl/Cmd to select multiple</div>
+              <div style={{ ...styles.card, marginBottom: '1.5rem', overflowX: 'auto' }}>
+                <div style={styles.cardTitle}>👥 Mark Players Present</div>
+                
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: '.75rem', fontWeight: '700', color: '#00E676', marginBottom: '.5rem' }}>
+                    {liveMatch.home_team} Players
                   </div>
-                  <div>
-                    <div style={{ fontSize: '.72rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>Substitutes ({playersSubs.length})</div>
-                    <select 
-                      multiple 
-                      style={{ ...styles.input, height: '150px' }} 
-                      value={playersSubs} 
-                      onChange={e => setPlayersSubs(Array.from(e.target.selectedOptions, op => op.value))}
-                    >
-                      {matchPlayers.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.position})</option>
-                      ))}
-                    </select>
-                    <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>Subs get half points</div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.72rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #1E2E20' }}>
+                          <th style={{ textAlign: 'left', padding: '.4rem', fontWeight: '700' }}>Player</th>
+                          <th style={{ textAlign: 'center', padding: '.4rem', fontWeight: '700' }}>0-45</th>
+                          <th style={{ textAlign: 'center', padding: '.4rem', fontWeight: '700' }}>45-90</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matchPlayers.filter(p => p.team === liveMatch.home_team).map(p => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid rgba(30,46,32,.5)', backgroundColor: (playerPresence[p.id]?.first_half || playerPresence[p.id]?.second_half) ? 'rgba(0,230,118,.05)' : 'transparent' }}>
+                            <td style={{ padding: '.5rem .4rem', fontWeight: '600' }}>{p.name}</td>
+                            <td style={{ textAlign: 'center', padding: '.5rem .4rem' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={playerPresence[p.id]?.first_half || false}
+                                onChange={() => togglePlayerHalf(p.id, 'first_half')}
+                                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '.5rem .4rem' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={playerPresence[p.id]?.second_half || false}
+                                onChange={() => togglePlayerHalf(p.id, 'second_half')}
+                                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '.75rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>
+                    {liveMatch.away_team} Players
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.72rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #1E2E20' }}>
+                          <th style={{ textAlign: 'left', padding: '.4rem', fontWeight: '700' }}>Player</th>
+                          <th style={{ textAlign: 'center', padding: '.4rem', fontWeight: '700' }}>0-45</th>
+                          <th style={{ textAlign: 'center', padding: '.4rem', fontWeight: '700' }}>45-90</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matchPlayers.filter(p => p.team === liveMatch.away_team).map(p => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid rgba(30,46,32,.5)', backgroundColor: (playerPresence[p.id]?.first_half || playerPresence[p.id]?.second_half) ? 'rgba(100,181,246,.05)' : 'transparent' }}>
+                            <td style={{ padding: '.5rem .4rem', fontWeight: '600' }}>{p.name}</td>
+                            <td style={{ textAlign: 'center', padding: '.5rem .4rem' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={playerPresence[p.id]?.first_half || false}
+                                onChange={() => togglePlayerHalf(p.id, 'first_half')}
+                                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '.5rem .4rem' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={playerPresence[p.id]?.second_half || false}
+                                onChange={() => togglePlayerHalf(p.id, 'second_half')}
+                                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
 
-              {/* Log Event */}
               <div style={styles.card}>
                 <div style={styles.cardTitle}>⚽ Log Event</div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-                  {/* Player Dropdown */}
                   <div>
-                    <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Player</label>
-                    <select 
+                    <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>🔍 Search Player</label>
+                    <input 
                       style={styles.input} 
-                      value={eventForm.player_id} 
-                      onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}
-                    >
-                      <option value="">-- Choose Player --</option>
-                      {matchPlayers.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.position} · {p.team})
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Type player name..." 
+                      value={searchPlayer}
+                      onChange={e => setSearchPlayer(e.target.value)}
+                    />
+                    {searchPlayer && (
+                      <div style={{ marginTop: '.5rem', maxHeight: '150px', overflowY: 'auto' }}>
+                        {matchPlayers
+                          .filter(p => p.name.toLowerCase().includes(searchPlayer.toLowerCase()))
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                setEventForm({ ...eventForm, player_id: p.id })
+                                setSearchPlayer('')
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                padding: '.5rem .6rem', 
+                                background: '#1E2E20', 
+                                border: '1px solid #1E2E20', 
+                                borderRadius: '6px', 
+                                color: '#E8F5E9', 
+                                textAlign: 'left', 
+                                marginBottom: '.3rem',
+                                cursor: 'pointer',
+                                fontSize: '.72rem'
+                              }}
+                            >
+                              {p.name} ({p.position} · {p.team})
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Event Type Dropdown */}
+                  {eventForm.player_id && (
+                    <div style={{ padding: '.6rem', background: 'rgba(0,230,118,.1)', border: '1px solid #00E676', borderRadius: '6px', fontSize: '.75rem', fontWeight: '700', color: '#00E676' }}>
+                      Selected: {matchPlayers.find(p => p.id === eventForm.player_id)?.name}
+                    </div>
+                  )}
+
                   <div>
                     <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Event</label>
                     <select 
@@ -504,7 +437,6 @@ export default function Admin() {
                     </select>
                   </div>
 
-                  {/* Log Button */}
                   <button 
                     style={{ ...styles.btn, width: '100%' }} 
                     onClick={addEvent}
@@ -514,7 +446,6 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* End Match */}
               <button 
                 style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', width: '100%', marginTop: '1.5rem', padding: '1rem' }} 
                 onClick={endMatch}
@@ -525,262 +456,6 @@ export default function Admin() {
           )}
         </div>
       )}
-
-      {tab === 'Payments' && <PaymentsTab />}
-      {tab === 'Announcements' && <AnnouncementsTab />}
-      {tab === 'Season' && <SeasonTab />}
-    </div>
-  )
-}
-
-function PaymentsTab() {
-  const [payments, setPayments] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
-
-  useEffect(() => { fetchPayments() }, [])
-
-  const fetchPayments = async () => {
-    setLoading(true)
-    const { data } = await supabase.from('managers').select('*').order('created_at', { ascending: false })
-    setPayments(data || [])
-    setLoading(false)
-  }
-
-  const showToast = (msg, bad = false) => {
-    setToast({ msg, bad })
-    setTimeout(() => setToast(null), 2500)
-  }
-
-  const confirm = async (id, name) => {
-    await supabase.from('managers').update({ payment_status: 'confirmed' }).eq('id', id)
-    showToast(`✅ ${name} confirmed!`)
-    fetchPayments()
-  }
-
-  const reject = async (id, name) => {
-    await supabase.from('managers').update({ payment_status: 'rejected' }).eq('id', id)
-    showToast(`❌ ${name} rejected`, true)
-    fetchPayments()
-  }
-
-  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
-
-  return (
-    <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
-      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
-      <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Payment Submissions ({payments.length})</div>
-      {payments.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No submissions yet</div>}
-      {payments.map(m => (
-        <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.85rem 0', borderBottom: '1px solid #1E2E20', flexWrap: 'wrap', gap: '.5rem' }}>
-          <div>
-            <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.full_name || m.display_name || 'Unknown'}</div>
-            <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{m.matric_number} · {m.department}</div>
-            {m.transaction_id && <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>TXN: {m.transaction_id}</div>}
-          </div>
-          <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px', background: m.payment_status === 'confirmed' ? 'rgba(0,230,118,.1)' : m.payment_status === 'rejected' ? 'rgba(239,154,154,.1)' : 'rgba(255,215,0,.1)', color: m.payment_status === 'confirmed' ? '#00E676' : m.payment_status === 'rejected' ? '#EF9A9A' : '#FFD700' }}>
-              {m.payment_status}
-            </span>
-            {m.payment_proof && (
-              <a href={m.payment_proof} target="_blank" rel="noreferrer" style={{ fontSize: '.72rem', color: '#00E676', fontWeight: '700' }}>View Proof</a>
-            )}
-            {m.payment_status === 'pending' && (
-              <>
-                <button style={{ padding: '.3rem .7rem', borderRadius: '6px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.72rem', border: 'none', cursor: 'pointer' }} onClick={() => confirm(m.id, m.full_name || m.display_name)}>Confirm ✅</button>
-                <button style={{ padding: '.3rem .7rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontWeight: '800', fontSize: '.72rem', cursor: 'pointer' }} onClick={() => reject(m.id, m.full_name || m.display_name)}>Reject ❌</button>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function AnnouncementsTab() {
-  const [announcements, setAnnouncements] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
-  const [form, setForm] = useState({ title: '', body: '', is_pinned: false })
-
-  useEffect(() => { fetchAnnouncements() }, [])
-
-  const fetchAnnouncements = async () => {
-    setLoading(true)
-    const { data } = await supabase.from('announcements').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false })
-    setAnnouncements(data || [])
-    setLoading(false)
-  }
-
-  const showToast = (msg, bad = false) => {
-    setToast({ msg, bad })
-    setTimeout(() => setToast(null), 2500)
-  }
-
-  const addAnnouncement = async () => {
-    if (!form.title || !form.body) return showToast('⚠ Fill all fields', true)
-    const { error } = await supabase.from('announcements').insert(form)
-    if (error) return showToast('❌ Failed to post', true)
-    showToast('✅ Announcement posted!')
-    setForm({ title: '', body: '', is_pinned: false })
-    fetchAnnouncements()
-  }
-
-  const deleteAnnouncement = async (id) => {
-    if (!confirm('Delete this announcement?')) return
-    await supabase.from('announcements').delete().eq('id', id)
-    showToast('Announcement deleted')
-    fetchAnnouncements()
-  }
-
-  const togglePin = async (id, pinned) => {
-    await supabase.from('announcements').update({ is_pinned: !pinned }).eq('id', id)
-    fetchAnnouncements()
-  }
-
-  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
-
-  return (
-    <div>
-      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1rem' }}>
-        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>Post Announcement</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
-          <input style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none' }} placeholder="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <textarea style={{ padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }} placeholder="Message body..." value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', color: '#5A7A5E', cursor: 'pointer' }}>
-            <input type="checkbox" checked={form.is_pinned} onChange={e => setForm({ ...form, is_pinned: e.target.checked })} />
-            📌 Pin this announcement
-          </label>
-          <button style={{ padding: '.8rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' }} onClick={addAnnouncement}>POST ANNOUNCEMENT</button>
-        </div>
-      </div>
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
-        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>All Announcements ({announcements.length})</div>
-        {announcements.length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No announcements yet</div>}
-        {announcements.map(a => (
-          <div key={a.id} style={{ padding: '.85rem 0', borderBottom: '1px solid #1E2E20' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{a.is_pinned && '📌 '}{a.title}</div>
-                <div style={{ fontSize: '.75rem', color: '#5A7A5E', marginTop: '.3rem' }}>{a.body}</div>
-                <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>{new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-              </div>
-              <div style={{ display: 'flex', gap: '.4rem' }}>
-                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: a.is_pinned ? 'rgba(255,215,0,.1)' : 'transparent', border: '1px solid #FFD700', color: '#FFD700', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => togglePin(a.id, a.is_pinned)}>{a.is_pinned ? 'Unpin' : 'Pin'}</button>
-                <button style={{ padding: '.3rem .6rem', borderRadius: '6px', background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', fontSize: '.7rem', fontWeight: '700', cursor: 'pointer' }} onClick={() => deleteAnnouncement(a.id)}>Delete</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function SeasonTab() {
-  const [loading, setLoading] = useState(true)
-  const [seasonStatus, setSeasonStatus] = useState('active')
-  const [seasonName, setSeasonName] = useState('2025/26')
-  const [champion, setChampion] = useState(null)
-  const [topManagers, setTopManagers] = useState([])
-  const [toast, setToast] = useState(null)
-
-  useEffect(() => { fetchData() }, [])
-
-  const fetchData = async () => {
-    setLoading(true)
-    const [{ data: settings }, { data: managers }] = await Promise.all([
-      supabase.from('settings').select('*'),
-      supabase.from('managers').select('*').eq('payment_status', 'confirmed').order('total_points', { ascending: false }).limit(3)
-    ])
-    const status = settings?.find(s => s.id === 'season_status')?.value || 'active'
-    const name = settings?.find(s => s.id === 'season_name')?.value || '2025/26'
-    setSeasonStatus(status)
-    setSeasonName(name)
-    setTopManagers(managers || [])
-    if (managers?.length > 0) setChampion(managers[0])
-    setLoading(false)
-  }
-
-  const showToast = (msg, bad = false) => {
-    setToast({ msg, bad })
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  const endSeason = async () => {
-    if (!confirm(`End the ${seasonName} season? This will crown the champion and lock the final standings. This cannot be undone.`)) return
-    await supabase.from('settings').update({ value: 'ended' }).eq('id', 'season_status')
-    if (champion) {
-      await supabase.from('announcements').insert({
-        title: `🏆 ${seasonName} Season Champion!`,
-        body: `Congratulations to ${champion.team_name || champion.full_name} for winning the FUNAAB Fantasy League ${seasonName} season with ${champion.total_points} points! 🎉`,
-        is_pinned: true
-      })
-    }
-    showToast('🏆 Season ended! Champion crowned!')
-    fetchData()
-  }
-
-  const resetSeason = async () => {
-    if (!confirm('Start a new season? This will reset ALL manager points and matchday data. Player stats will be kept.')) return
-    await supabase.from('managers').update({ total_points: 0, free_transfers: 1, wildcard_used: false }).eq('payment_status', 'confirmed')
-    await supabase.from('matchday_points').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('squads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('match_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('settings').update({ value: 'active' }).eq('id', 'season_status')
-    await supabase.from('settings').update({ value: '2026/27' }).eq('id', 'season_name')
-    showToast('✅ New season started!')
-    fetchData()
-  }
-
-  if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
-
-  return (
-    <div>
-      {toast && <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
-      <div style={{ background: seasonStatus === 'ended' ? 'rgba(255,215,0,.04)' : 'rgba(0,230,118,.04)', border: `1px solid ${seasonStatus === 'ended' ? 'rgba(255,215,0,.2)' : 'rgba(0,230,118,.2)'}`, borderRadius: '12px', padding: '1.5rem', marginBottom: '1.2rem' }}>
-        <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.4rem' }}>Current Season</div>
-        <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', lineHeight: 1, marginBottom: '.4rem' }}>{seasonName}</div>
-        <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: seasonStatus === 'active' ? 'rgba(0,230,118,.1)' : 'rgba(255,215,0,.1)', color: seasonStatus === 'active' ? '#00E676' : '#FFD700' }}>
-          {seasonStatus === 'active' ? '🟢 ACTIVE' : '🏁 ENDED'}
-        </span>
-      </div>
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1.2rem' }}>
-        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>🏆 Current Standings</div>
-        {topManagers.map((m, i) => (
-          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.7rem 0', borderBottom: i < topManagers.length - 1 ? '1px solid #1E2E20' : 'none' }}>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: i === 0 ? '#FFD700' : i === 1 ? '#B0BEC5' : '#C97038' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.team_name || m.full_name}</div>
-              <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{m.department}</div>
-            </div>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: '#00E676' }}>{m.total_points}</div>
-          </div>
-        ))}
-      </div>
-      {seasonStatus === 'ended' && champion && (
-        <div style={{ background: 'linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,215,0,.03))', border: '1px solid rgba(255,215,0,.3)', borderRadius: '12px', padding: '2rem', marginBottom: '1.2rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '.5rem' }}>🏆</div>
-          <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.3rem' }}>Season Champion</div>
-          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#FFD700', lineHeight: 1 }}>{champion.team_name || champion.full_name}</div>
-          <div style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.4rem' }}>{champion.total_points} points · {champion.department}</div>
-        </div>
-      )}
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '.3rem', color: '#E8F5E9' }}>Season Actions</div>
-        {seasonStatus === 'active' && (
-          <button style={{ padding: '.9rem', borderRadius: '8px', background: 'rgba(255,215,0,.1)', border: '1px solid #FFD700', color: '#FFD700', fontWeight: '800', fontSize: '.85rem', cursor: 'pointer', letterSpacing: '1px' }} onClick={endSeason}>
-            🏁 End Season & Crown Champion
-          </button>
-        )}
-        <button style={{ padding: '.9rem', borderRadius: '8px', background: 'rgba(239,154,154,.1)', border: '1px solid #EF9A9A', color: '#EF9A9A', fontWeight: '800', fontSize: '.85rem', cursor: 'pointer', letterSpacing: '1px' }} onClick={resetSeason}>
-          🔄 Reset & Start New Season
-        </button>
-        <p style={{ fontSize: '.75rem', color: '#5A7A5E', lineHeight: 1.6 }}>⚠ Ending the season will crown the current leader as champion and post an announcement. Resetting will clear all points, squads and matches for a fresh season.</p>
-      </div>
     </div>
   )
 }
@@ -793,12 +468,8 @@ const styles = {
   tabActive: { background: 'rgba(0,230,118,.09)', borderColor: '#00E676', color: '#00E676' },
   card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
   cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
-  form: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.7rem' },
   input: { padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', width: '100%' },
   btn: { padding: '.75rem 1rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.82rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
-  row: { display: 'flex', alignItems: 'center', gap: '.8rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
-  posBadge: { width: '28px', height: '28px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
-  badge: { fontSize: '.62rem', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '.2rem .6rem', borderRadius: '100px' },
   toast: { position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: '1px solid #00E676', color: '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 },
   toastBad: { borderColor: '#EF9A9A', color: '#EF9A9A' }
-    }
+}
