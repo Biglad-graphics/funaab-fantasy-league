@@ -562,30 +562,107 @@ export default function Admin() {
                 {selectedEventPlayer && (
                   <div style={{ padding: '.6rem', background: 'rgba(0,230,118,.1)', borderRadius: '6px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '.8rem' }}>{selectedEventPlayer.name}</span>
-                    <button onClick={() => setSelectedEventPlayer(null)} style={{ padding: '.2rem .4rem', background: '#EF9A9A', color: '#080C0A', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '.7rem' }}>Clear</button>
-                  </div>
-                )}
-                <div style={styles.form}>
-                  <select style={styles.input} value={eventForm.event_type} onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}>
-                    <option value="goal">⚽ Goal</option>
-                    <option value="assist">🅰 Assist</option>
-                    <option value="yellow">🟨 Yellow Card</option>
-                    <option value="red">🟥 Red Card</option>
-                    <option value="own_goal">😬 Own Goal</option>
-                    <option value="penalty_missed">❌ Penalty Missed</option>
-                    <option value="started">▶ Started Match</option>
-                    <option value="played_90">✅ Played 90 mins</option>
-                  </select>
-                  <input style={styles.input} type="number" placeholder="Minute (optional)" value={eventForm.minute} onChange={e => setEventForm({ ...eventForm, minute: e.target.value })} />
-                  <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={selectedEventPlayer ? logEvent : addEvent}>
-                    {selectedEventPlayer ? 'Log Event' : 'Add Event'}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+{tab === 'Live Match' && (
+  <div>
+    {!liveMatch ? (
+      <div style={styles.card}>
+        <div style={styles.cardTitle}>No Live Match</div>
+        <p style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.5rem' }}>Go to Matches tab and click "Go Live".</p>
+      </div>
+    ) : (
+      <>
+        {/* Score Display */}
+        <div style={{ ...styles.card, border: '1px solid rgba(0,230,118,.25)', background: 'rgba(0,230,118,.04)', marginBottom: '1.5rem' }}>
+          <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.5rem' }}>🔴 LIVE</div>
+          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', marginBottom: '.5rem', lineHeight: 1 }}>
+            {liveMatch.home_team} <span style={{ color: '#00E676' }}>{liveMatch.home_score ?? 0} — {liveMatch.away_score ?? 0}</span> {liveMatch.away_team}
+          </div>
+          <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>GW{liveMatch.matchday} · {liveMatch.venue || 'TBD'}</div>
         </div>
-      )}
+
+        {/* Quick Actions */}
+        <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          <button style={{ ...styles.btn, background: 'rgba(0,230,118,.1)', color: '#00E676', border: '1px solid #00E676', flex: 1 }} onClick={() => markAllAppearances('started')}>
+            ▶ Mark All Started
+          </button>
+          <button style={{ ...styles.btn, background: 'rgba(100,181,246,.1)', color: '#64B5F6', border: '1px solid #64B5F6', flex: 1 }} onClick={() => markAllAppearances('played_90')}>
+            ✅ Mark All Played 90
+          </button>
+        </div>
+
+        {/* Log Event */}
+        <div style={styles.card}>
+          <div style={styles.cardTitle}>⚽ Log Event</div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
+            {/* Player Dropdown */}
+            <div>
+              <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Player</label>
+              <select 
+                style={styles.input} 
+                value={eventForm.player_id} 
+                onChange={e => setEventForm({ ...eventForm, player_id: e.target.value })}
+              >
+                <option value="">-- Choose Player --</option>
+                {matchPlayers.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.position} · {p.team})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Event Type Dropdown */}
+            <div>
+              <label style={{ fontSize: '.75rem', fontWeight: '700', color: '#5A7A5E', display: 'block', marginBottom: '.3rem' }}>Select Event</label>
+              <select 
+                style={styles.input} 
+                value={eventForm.event_type} 
+                onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}
+              >
+                <option value="goal">⚽ Goal</option>
+                <option value="assist">🅰 Assist</option>
+                <option value="yellow">🟨 Yellow Card</option>
+                <option value="red">🟥 Red Card</option>
+                <option value="own_goal">😬 Own Goal</option>
+                <option value="penalty_missed">❌ Penalty Missed</option>
+              </select>
+            </div>
+
+            {/* Log Button */}
+            <button 
+              style={{ ...styles.btn, width: '100%' }} 
+              onClick={addEvent}
+            >
+              Log Event
+            </button>
+          </div>
+        </div>
+
+        {/* Logged Events */}
+        {matchPlayers.filter(p => {
+          const hasEvent = true
+          return hasEvent
+        }).length > 0 && (
+          <div style={{ ...styles.card, marginTop: '1.5rem' }}>
+            <div style={styles.cardTitle}>📋 Events Logged</div>
+            <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
+              <p>Events are being logged and will be calculated when you end the match.</p>
+            </div>
+          </div>
+        )}
+
+        {/* End Match */}
+        <button 
+          style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', width: '100%', marginTop: '1.5rem', padding: '1rem' }} 
+          onClick={endMatch}
+        >
+          🏁 End Match & Calculate Points
+        </button>
+      </>
+    )}
+  </div>
+)}
 
       {tab === 'Payments' && <PaymentsTab />}
       {tab === 'Announcements' && <AnnouncementsTab />}
