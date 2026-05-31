@@ -70,7 +70,7 @@ export default function MyTeam({ manager }) {
     const posCount = { GK: 2, DF: 5, MF: 5, FW: 3 }
     const currentPos = selected.filter(p => p.position === player.position).length
     if (currentPos >= posCount[player.position]) return showToast(`⚠ Max ${posCount[player.position]} ${player.position}s`, true)
-    setSelected(prev => [...prev, { ...player, is_captain: false, is_starting: prev.length < 11 }])
+    setSelected(prev => [...prev, { ...player, is_captain: false, is_starting: prev.length < 11, last_match_points: 0 }])
   }
 
   const setCaptain = (playerId) => {
@@ -107,6 +107,18 @@ export default function MyTeam({ manager }) {
     fetchData()
   }
 
+  const activateWildcard = async () => {
+    if (manager?.wildcard_used) return
+    if (!confirm('Use your Wildcard? This allows unlimited free transfers this week. You can only use it once per season.')) return
+    const { error } = await supabase
+      .from('managers')
+      .update({ wildcard_used: true, free_transfers: 15 })
+      .eq('id', manager.id)
+    if (error) return showToast('❌ Failed to activate wildcard', true)
+    showToast('🃏 Wildcard activated! Make unlimited transfers!')
+    setView('pick')
+  }
+
   const filtered = players.filter(p =>
     (posFilter === 'ALL' || p.position === posFilter) &&
     (p.name.toLowerCase().includes(search.toLowerCase()) || p.team.toLowerCase().includes(search.toLowerCase()))
@@ -123,6 +135,7 @@ export default function MyTeam({ manager }) {
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚽ Squad</div>
       <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1rem' }}>My Team</h1>
 
+      {/* Transfer Window Banner */}
       {transferWindow === 'closed' && (
         <div style={{ background: 'rgba(239,154,154,.05)', border: '1px solid rgba(239,154,154,.2)', borderRadius: '10px', padding: '1rem 1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
           <span style={{ fontSize: '1.2rem' }}>🔒</span>
@@ -133,6 +146,7 @@ export default function MyTeam({ manager }) {
         </div>
       )}
 
+      {/* View Toggle */}
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <button onClick={() => setView('pitch')} style={{ ...styles.tab, ...(view === 'pitch' ? styles.tabActive : {}) }}>⚽ Pitch</button>
         <button onClick={() => setView('squad')} style={{ ...styles.tab, ...(view === 'squad' ? styles.tabActive : {}) }}>📋 List</button>
@@ -140,11 +154,44 @@ export default function MyTeam({ manager }) {
           onClick={() => { if (transferWindow === 'closed') return showToast('🔒 Transfer window is closed', true); setView('pick') }}
           style={{ ...styles.tab, ...(view === 'pick' ? styles.tabActive : {}), opacity: transferWindow === 'closed' ? .5 : 1 }}
         >
-          📍 Pick Players
+          Pick Players
         </button>
+        {!manager?.wildcard_used ? (
+          <button onClick={activateWildcard} style={{ ...styles.tab, background: 'rgba(255,215,0,.08)', borderColor: '#FFD700', color: '#FFD700' }}>
+            🃏 Wildcard
+          </button>
+        ) : (
+          <div style={{ fontSize: '.72rem', color: '#5A7A5E', padding: '.5rem .8rem', border: '1px solid #1E2E20', borderRadius: '8px' }}>
+            🃏 Wildcard Used
+          </div>
+        )}
       </div>
 
-      {view === 'pitch' && (
+      {/* PITCH VIEW */}
+{view === 'pitch' && (
+  <div>
+    {selected.length === 0 ? (
+      <div style={{ textAlign: 'center', padding: '3rem', background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚽</div>
+        <p style={{ color: '#5A7A5E', marginBottom: '1rem' }}>No squad selected yet</p>
+        <button style={styles.btn} onClick={() => setView('pick')}>Pick Your Squad</button>
+      </div>
+    ) : (
+      <>
+        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '.8rem 1.2rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '.72rem', color: '#5A7A5E' }}>
+          <span>Tap a player to set as <strong style={{ color: '#FFD700' }}>Captain ⭐</strong></span>
+        </div>
+        <PitchView selected={selected} onSetCaptain={setCaptain} />
+        <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
+          {saving ? 'SAVING...' : 'SAVE SQUAD'}
+        </button>
+      </>
+    )}
+  </div>
+)}
+
+      {/* SQUAD VIEW */}
+      {view === 'squad' && (
         <div>
           {selected.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px' }}>
@@ -154,172 +201,106 @@ export default function MyTeam({ manager }) {
             </div>
           ) : (
             <>
-              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '.8rem 1.2rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '.72rem', color: '#5A7A5E' }}>
-                <span>Tap a player to set as <strong style={{ color: '#FFD700' }}>Captain ⭐</strong></span>
-              </div>
-              <PitchView selected={selected} onSetCaptain={setCaptain} />
-              <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
-                {saving ? 'SAVING...' : 'SAVE SQUAD'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {view === 'squad' && (
-        <div>
-          {selected.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px' }}>
-              <p style={{ color: '#5A7A5E', marginBottom: '1rem' }}>No squad selected yet</p>
-              <button style={styles.btn} onClick={() => setView('pick')}>Pick Your Squad</button>
-            </div>
-          ) : (
-            <>
-              <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
-                <div style={styles.cardTitle}>Squad Summary</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div style={{ padding: '1rem', background: 'rgba(0,230,118,.05)', borderRadius: '8px', border: '1px solid rgba(0,230,118,.15)' }}>
-                    <div style={{ fontSize: '.72rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Players Selected</div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: '#00E676' }}>{selected.length}/15</div>
-                  </div>
-                  <div style={{ padding: '1rem', background: 'rgba(255,215,0,.05)', borderRadius: '8px', border: '1px solid rgba(255,215,0,.15)' }}>
-                    <div style={{ fontSize: '.72rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Budget Remaining</div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: '#FFD700' }}>₦{remaining.toFixed(1)}M</div>
-                  </div>
-                </div>
-                <div style={{ padding: '1rem', background: 'rgba(100,181,246,.05)', borderRadius: '8px', border: '1px solid rgba(100,181,246,.15)' }}>
-                  <div style={{ fontSize: '.72rem', color: '#5A7A5E', marginBottom: '.2rem' }}>Squad Cost</div>
-                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', color: '#64B5F6' }}>₦{spent.toFixed(1)}M / ₦100M</div>
-                </div>
+              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
+                <div><div style={styles.miniLabel}>Spent</div><div style={{ ...styles.miniVal, color: '#EF9A9A' }}>₦{spent.toFixed(1)}M</div></div>
+                <div><div style={styles.miniLabel}>Remaining</div><div style={{ ...styles.miniVal, color: '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
               </div>
 
               <div style={styles.card}>
-                <div style={styles.cardTitle}>⚽ Starting XI ({selected.filter(p => p.is_starting).length}/11)</div>
-                {selected.filter(p => p.is_starting).map((p) => (
+                <div style={styles.cardTitle}>⭐ Starting XI</div>
+                {selected.filter(p => p.is_starting).map(p => (
                   <div key={p.id} style={styles.playerRow}>
-                    <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
+                    <div style={{ ...styles.posBadge, background: posColor(p.position).bg, color: posColor(p.position).color }}>{p.position}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
+                      <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name} {p.is_captain && '⭐'}</div>
+                      <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team} · ₦{p.price}M</div>
                     </div>
-                    {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                    <button style={{ ...styles.smBtn, color: '#64B5F6', border: '1px solid #64B5F6' }} onClick={() => toggleStarting(p.id)}>Bench</button>
-                    <button 
-                      style={{ ...styles.smBtn, color: '#EF9A9A', border: '1px solid #EF9A9A' }} 
-                      onClick={() => {
-                        setSelected(prev => prev.filter(pl => pl.id !== p.id))
-                        showToast(`Sold ${p.name} for ₦${p.price}M`)
-                      }}
-                      disabled={transferWindow === 'closed'}
-                    >
-                      Sell
-                    </button>
+                    <div style={{ display: 'flex', gap: '.4rem' }}>
+                      <button style={{ ...styles.smBtn, background: p.is_captain ? '#FFD700' : 'transparent', color: p.is_captain ? '#080C0A' : '#FFD700', border: '1px solid #FFD700' }} onClick={() => setCaptain(p.id)}>C</button>
+                      <button style={{ ...styles.smBtn, borderColor: '#5A7A5E', color: '#5A7A5E' }} onClick={() => toggleStarting(p.id)}>→ Bench</button>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {selected.filter(p => !p.is_starting).length > 0 && (
-                <div style={{ ...styles.card, marginTop: '1.5rem' }}>
-                  <div style={styles.cardTitle}>🪑 Substitutes ({selected.filter(p => !p.is_starting).length})</div>
-                  {selected.filter(p => !p.is_starting).map((p) => (
-                    <div key={p.id} style={styles.playerRow}>
-                      <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
-                        <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
-                      </div>
-                      {p.is_captain && <span style={{ fontSize: '.8rem' }}>⭐</span>}
-                      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                      <button style={{ ...styles.smBtn, color: '#00E676', border: '1px solid #00E676' }} onClick={() => toggleStarting(p.id)}>Play</button>
-                      <button 
-                        style={{ ...styles.smBtn, color: '#EF9A9A', border: '1px solid #EF9A9A' }} 
-                        onClick={() => {
-                          setSelected(prev => prev.filter(pl => pl.id !== p.id))
-                          showToast(`Sold ${p.name} for ₦${p.price}M`)
-                        }}
-                        disabled={transferWindow === 'closed'}
-                      >
-                        Sell
-                      </button>
+              <div style={{ ...styles.card, marginTop: '1rem' }}>
+                <div style={styles.cardTitle}>🪑 Bench</div>
+                {selected.filter(p => !p.is_starting).map(p => (
+                  <div key={p.id} style={{ ...styles.playerRow, opacity: .7 }}>
+                    <div style={{ ...styles.posBadge, background: posColor(p.position).bg, color: posColor(p.position).color }}>{p.position}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '700', fontSize: '.85rem' }}>{p.name}</div>
+                      <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>{p.team} · ₦{p.price}M</div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <button style={{ ...styles.smBtn, borderColor: '#00E676', color: '#00E676' }} onClick={() => toggleStarting(p.id)}>→ Start</button>
+                  </div>
+                ))}
+                {selected.filter(p => !p.is_starting).length === 0 && <div style={{ color: '#5A7A5E', fontSize: '.85rem' }}>No bench players</div>}
+              </div>
 
-              <button style={{ ...styles.btn, width: '100%', marginTop: '1.5rem' }} onClick={saveSquad} disabled={saving}>
+              <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
                 {saving ? 'SAVING...' : 'SAVE SQUAD'}
+              </button>
+              <button style={{ ...styles.outlineBtn, width: '100%', marginTop: '.5rem' }} onClick={() => setView('pick')}>
+                Edit Squad
               </button>
             </>
           )}
         </div>
       )}
 
+      {/* PICK VIEW */}
       {view === 'pick' && (
         <div>
-          <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
-            <div style={styles.cardTitle}>Search & Filter</div>
+          <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div><div style={styles.miniLabel}>Players</div><div style={styles.miniVal}>{selected.length}/15</div></div>
+            <div><div style={styles.miniLabel}>Remaining</div><div style={{ ...styles.miniVal, color: remaining < 0 ? '#EF9A9A' : '#00E676' }}>₦{remaining.toFixed(1)}M</div></div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.8rem', flexWrap: 'wrap' }}>
             <input
-              style={{ ...styles.input, marginBottom: '1rem' }}
-              placeholder="🔍 Search player name or team..."
+              style={{ flex: 1, padding: '.6rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#111A13', color: '#E8F5E9', fontSize: '.82rem', outline: 'none', minWidth: '150px' }}
+              placeholder="Search players..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
-            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-              {['ALL', 'GK', 'DF', 'MF', 'FW'].map(pos => (
-                <button
-                  key={pos}
-                  onClick={() => setPosFilter(pos)}
-                  style={{
-                    padding: '.4rem .8rem',
-                    borderRadius: '6px',
-                    border: posFilter === pos ? `2px solid ${posColor(pos).color}` : '1px solid #1E2E20',
-                    background: posFilter === pos ? `${posColor(pos).bg}` : 'transparent',
-                    color: posFilter === pos ? posColor(pos).color : '#5A7A5E',
-                    fontSize: '.72rem',
-                    fontWeight: '700',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {pos}
-                </button>
-              ))}
-            </div>
+            {['ALL', 'GK', 'DF', 'MF', 'FW'].map(pos => (
+              <button key={pos} onClick={() => setPosFilter(pos)} style={{ ...styles.smBtn, ...(posFilter === pos ? { background: 'rgba(0,230,118,.1)', borderColor: '#00E676', color: '#00E676' } : { borderColor: '#1E2E20', color: '#5A7A5E' }) }}>{pos}</button>
+            ))}
           </div>
 
           <div style={styles.card}>
-            <div style={styles.cardTitle}>Available Players ({filtered.length})</div>
             {filtered.length === 0 ? (
-              <p style={{ color: '#5A7A5E', textAlign: 'center', padding: '2rem' }}>No players found</p>
-            ) : (
-              filtered.map(p => {
-                const inSquad = selected.find(s => s.id === p.id)
-                return (
-                  <div key={p.id} style={{ ...styles.playerRow, opacity: inSquad ? 0.5 : 1 }}>
-                    <div style={{ ...styles.posBadge, ...posColor(p.position) }}>{p.position}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.team}</div>
-                    </div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
-                    <button
-                      onClick={() => togglePlayer(p)}
-                      style={{
-                        ...styles.btn,
-                        padding: '.3rem .8rem',
-                        fontSize: '.72rem',
-                        background: inSquad ? '#5A7A5E' : '#00E676',
-                        cursor: inSquad ? 'not-allowed' : 'pointer'
-                      }}
-                      disabled={inSquad}
-                    >
-                      {inSquad ? '✓ Added' : 'Add'}
-                    </button>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No players found</div>
+            ) : filtered.map(p => {
+              const inSquad = selected.find(s => s.id === p.id)
+              const pc = posColor(p.position)
+              return (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '.7rem', padding: '.65rem 0', borderBottom: '1px solid rgba(30,46,32,.4)' }}>
+                  <div style={{ ...styles.posBadge, background: pc.bg, color: pc.color }}>{p.position}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{p.name}</div>
+                    <div style={{ fontSize: '.68rem', color: '#5A7A5E' }}>{p.team}</div>
                   </div>
-                )
-              })
-            )}
+                  <div style={{ fontSize: '.72rem', color: '#5A7A5E' }}>{p.goals ?? 0}⚽</div>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#FFD700' }}>₦{p.price}M</div>
+                  <button
+                    onClick={() => togglePlayer(p)}
+                    style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1px solid ${inSquad ? '#EF9A9A' : '#00E676'}`, background: inSquad ? 'rgba(239,154,154,.1)' : 'transparent', color: inSquad ? '#EF9A9A' : '#00E676', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  >
+                    {inSquad ? '−' : '+'}
+                  </button>
+                </div>
+              )
+            })}
           </div>
+
+          {selected.length === 15 && (
+            <button style={{ ...styles.btn, width: '100%', marginTop: '1rem' }} onClick={saveSquad} disabled={saving}>
+              {saving ? 'SAVING...' : 'SAVE SQUAD'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -329,6 +310,7 @@ export default function MyTeam({ manager }) {
 function PitchView({ selected, onSetCaptain }) {
   const starters = selected.filter(p => p.is_starting)
   const bench = selected.filter(p => !p.is_starting)
+
   const gk = starters.filter(p => p.position === 'GK')
   const df = starters.filter(p => p.position === 'DF')
   const mf = starters.filter(p => p.position === 'MF')
@@ -347,6 +329,7 @@ function PitchView({ selected, onSetCaptain }) {
         minWidth: '55px'
       }}
     >
+      {/* Jersey */}
       <div style={{
         width: '42px',
         height: '42px',
@@ -381,6 +364,7 @@ function PitchView({ selected, onSetCaptain }) {
           }}>C</div>
         )}
       </div>
+      {/* Name */}
       <div style={{
         background: 'rgba(0,0,0,0.7)',
         color: '#fff',
@@ -396,18 +380,17 @@ function PitchView({ selected, onSetCaptain }) {
       }}>
         {player.name.split(' ').pop()}
       </div>
-      {player.last_match_points !== undefined && (
-        <div style={{
-          background: player.last_match_points > 0 ? '#00E676' : player.last_match_points < 0 ? '#EF9A9A' : '#5A7A5E',
-          color: '#080C0A',
-          fontSize: '.55rem',
-          fontWeight: '900',
-          padding: '.1rem .35rem',
-          borderRadius: '3px'
-        }}>
-          {player.last_match_points > 0 ? '+' : ''}{player.last_match_points}pts
-        </div>
-      )}
+      {/* Points */}
+      <div style={{
+        background: '#00E676',
+        color: '#080C0A',
+        fontSize: '.55rem',
+        fontWeight: '900',
+        padding: '.1rem .35rem',
+        borderRadius: '3px'
+      }}>
+        {player.total_points ?? 0}pts
+      </div>
     </div>
   )
 
@@ -425,6 +408,7 @@ function PitchView({ selected, onSetCaptain }) {
 
   return (
     <div>
+      {/* Pitch */}
       <div style={{
         background: 'linear-gradient(180deg, #2d8a4e 0%, #3aa058 25%, #2d8a4e 50%, #3aa058 75%, #2d8a4e 100%)',
         borderRadius: '12px',
@@ -437,19 +421,25 @@ function PitchView({ selected, onSetCaptain }) {
         flexDirection: 'column',
         justifyContent: 'space-around'
       }}>
+        {/* Pitch markings */}
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {/* Center circle */}
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '80px', height: '80px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)' }} />
+          {/* Center line */}
           <div style={{ position: 'absolute', top: '50%', left: '5%', right: '5%', height: '1px', background: 'rgba(255,255,255,0.2)' }} />
+          {/* Penalty areas */}
           <div style={{ position: 'absolute', top: '5%', left: '25%', right: '25%', height: '15%', border: '1px solid rgba(255,255,255,0.2)', borderBottom: 'none' }} />
           <div style={{ position: 'absolute', bottom: '5%', left: '25%', right: '25%', height: '15%', border: '1px solid rgba(255,255,255,0.2)', borderTop: 'none' }} />
         </div>
 
+        {/* Players by row - FW at top, GK at bottom */}
         <Row players={fw} />
         <Row players={mf} />
         <Row players={df} />
         <Row players={gk} />
       </div>
 
+      {/* Bench */}
       {bench.length > 0 && (
         <div style={{ marginTop: '1rem' }}>
           <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.6rem' }}>🪑 Substitutes</div>
@@ -472,16 +462,18 @@ function PitchView({ selected, onSetCaptain }) {
       )}
     </div>
   )
-}
+          }
 
 const styles = {
   tab: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.5rem 1.2rem', fontSize: '.78rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', cursor: 'pointer' },
   tabActive: { background: 'rgba(0,230,118,.09)', borderColor: '#00E676', color: '#00E676' },
-  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1.5rem' },
+  card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
   cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
-  input: { width: '100%', padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.85rem', outline: 'none' },
-  playerRow: { display: 'flex', alignItems: 'center', gap: '.7rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20', flexWrap: 'wrap' },
+  playerRow: { display: 'flex', alignItems: 'center', gap: '.7rem', paddingBottom: '.7rem', marginBottom: '.7rem', borderBottom: '1px solid #1E2E20' },
   posBadge: { width: '28px', height: '28px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: '800', flexShrink: 0 },
-  btn: { padding: '.6rem 1.2rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.78rem', border: 'none', cursor: 'pointer', letterSpacing: '.5px' },
-  smBtn: { padding: '.25rem .6rem', borderRadius: '5px', background: 'transparent', fontSize: '.68rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '.5px' }
-      }
+  btn: { padding: '.8rem 1.5rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
+  outlineBtn: { padding: '.8rem 1.5rem', borderRadius: '8px', background: 'transparent', border: '1px solid #1E2E20', color: '#5A7A5E', fontWeight: '700', fontSize: '.85rem', cursor: 'pointer' },
+  smBtn: { padding: '.25rem .6rem', borderRadius: '5px', background: 'transparent', fontSize: '.68rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '.5px' },
+  miniLabel: { fontSize: '.62rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E' },
+  miniVal: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', color: '#E8F5E9' }
+         }
