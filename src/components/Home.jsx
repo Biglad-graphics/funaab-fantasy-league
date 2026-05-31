@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import PointsSystem from './PointsSystem'
 
 export default function Home({ manager }) {
   const [matches, setMatches] = useState([])
@@ -8,8 +7,8 @@ export default function Home({ manager }) {
   const [rank, setRank] = useState(null)
   const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
-  const [managerOfWeek, setManagerOfWeek] = useState(null)
-  const [currentGameweek, setCurrentGameweek] = useState(null)
+  const [squad, setSquad] = useState([])
+  const [allManagers, setAllManagers] = useState([])
 
   useEffect(() => {
     fetchData()
@@ -18,62 +17,56 @@ export default function Home({ manager }) {
       .channel('home-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matchday_points' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'squads' }, fetchData)
       .subscribe()
 
     return () => supabase.removeChannel(channel)
   }, [])
 
   const fetchData = async () => {
-    const [{ data: matchData }, { data: playerData }, { data: rankData }, { data: announcementData }, { data: matchdayData }] = await Promise.all([
-      supabase.from('matches').select('*').order('kickoff_time', { ascending: true }).limit(5),
+    const [{ data: matchData }, { data: playerData }, { data: rankData }, { data: announcementData }, { data: squadData }] = await Promise.all([
+      supabase.from('matches').select('*').order('kickoff_time', { ascending: true }),
       supabase.from('players').select('*').order('goals', { ascending: false }).limit(5),
       supabase.from('managers').select('id, total_points').order('total_points', { ascending: false }),
       supabase.from('announcements').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(5),
-      supabase.from('matchday_points').select('*, managers(id, full_name, team_name)').order('matchday', { ascending: false })
+      supabase.from('squads').select('*, players(*)').eq('manager_id', manager?.id)
     ])
 
     setMatches(matchData || [])
     setTopPlayers(playerData || [])
     setAnnouncements(announcementData || [])
+    setAllManagers(rankData || [])
+    setSquad(squadData || [])
 
     if (rankData) {
       const idx = rankData.findIndex(m => m.id === manager?.id)
       setRank(idx + 1)
     }
-
-    // Get Manager of the Week (most recent completed gameweek)
-    if (matchdayData && matchdayData.length > 0) {
-      // Get the most recent gameweek
-      const latestGameweek = matchdayData[0].matchday
-      setCurrentGameweek(latestGameweek)
-      
-      // Get all managers' points for that gameweek
-      const gameweekData = matchdayData.filter(m => m.matchday === latestGameweek)
-      
-      // Find the manager with highest points in that week
-      if (gameweekData.length > 0) {
-        const topManager = gameweekData.reduce((prev, current) =>
-          (prev.points || 0) > (current.points || 0) ? prev : current
-        )
-        setManagerOfWeek(topManager)
-      }
-    }
-
     setLoading(false)
   }
 
   if (loading) return <div style={{ color: '#5A7A5E', padding: '2rem' }}>Loading...</div>
 
   const liveMatch = matches.find(m => m.status === 'live')
+  const nextMatch = matches.find(m => m.status === 'scheduled')
   const upcoming = matches.filter(m => m.status === 'scheduled')
   const completed = matches.filter(m => m.status === 'completed')
+
+  // Calculate squad value
+  const squadValue = squad.reduce((sum, s) => sum + (s.players?.price || 0), 0)
+  const budgetSpent = squadValue
+  const budgetRemaining = 100 - budgetSpent
+
+  // Get manager stats
+  const totalManagers = allManagers.length
+  const managerAbove = rank ? rank - 1 : 0
+  const managerBelow = totalManagers - rank
 
   return (
     <div>
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>⚡ Home</div>
       <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1.5rem' }}>
-        {manager?.team_name || manager?.full_name}'s Dashboard
+        {manager?.team_name || manager?.full_name}
       </h1>
 
       {/* Live Match Banner */}
@@ -87,63 +80,86 @@ export default function Home({ manager }) {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Manager Stats Grid */}
       <div style={styles.statsGrid}>
-        {[
-          { label: 'Total Points', value: manager?.total_points ?? 0, color: '#00E676', icon: '⚡' },
-          { label: 'Overall Rank', value: rank ? `#${rank}` : '—', color: '#FFD700', icon: '🏆' },
-          { label: 'Free Transfers', value: manager?.free_transfers ?? 1, color: '#64B5F6', icon: '🔄' },
-          { label: 'Budget', value: `₦${manager?.budget ?? 100}M`, color: '#E8F5E9', icon: '💰' }
-        ].map(s => (
-          <div key={s.label} style={styles.statCard}>
-            <div style={styles.statIcon}>{s.icon}</div>
-            <div style={styles.statLabel}>{s.label}</div>
-            <div style={{ ...styles.statValue, color: s.color }}>{s.value}</div>
-          </div>
-        ))}
+        <div style={styles.statCard}>
+          <div style={styles.statIcon}>🏆</div>
+          <div style={styles.statLabel}>Overall Rank</div>
+          <div style={{ ...styles.statValue, color: '#FFD700' }}>#{rank || '—'}</div>
+          <div style={{ fontSize: '.6rem', color: '#5A7A5E', marginTop: '.3rem' }}>of {totalManagers}</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statIcon}>⚡</div>
+          <div style={styles.statLabel}>Total Points</div>
+          <div style={{ ...styles.statValue, color: '#00E676' }}>{manager?.total_points ?? 0}</div>
+          <div style={{ fontSize: '.6rem', color: '#5A7A5E', marginTop: '.3rem' }}>Points earned</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statIcon}>⚽</div>
+          <div style={styles.statLabel}>Squad Value</div>
+          <div style={{ ...styles.statValue, color: '#64B5F6' }}>₦{squadValue.toFixed(1)}M</div>
+          <div style={{ fontSize: '.6rem', color: '#5A7A5E', marginTop: '.3rem' }}>/ ₦100M</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statIcon}>👥</div>
+          <div style={styles.statLabel}>Squad</div>
+          <div style={{ ...styles.statValue, color: '#E8F5E9' }}>{squad.length}/15</div>
+          <div style={{ fontSize: '.6rem', color: '#5A7A5E', marginTop: '.3rem' }}>Players picked</div>
+        </div>
       </div>
 
-      {/* Manager of the Week Card */}
-      {managerOfWeek && currentGameweek && (
-        <div style={styles.motw}>
-          <div style={styles.motwIcon}>👑</div>
-          <div style={styles.motwContent}>
-            <div style={styles.motwLabel}>MANAGER OF THE WEEK</div>
-            <div style={styles.motwGameweek}>Gameweek {currentGameweek}</div>
-            <div style={styles.motwManager}>{managerOfWeek.managers?.team_name || managerOfWeek.managers?.full_name || 'Unknown'}</div>
-            <div style={styles.motwPoints}>{managerOfWeek.points} pts</div>
-          </div>
-          <div style={styles.motwBadge}>
-            <div style={styles.motwRank}>1st</div>
+      {/* Next Match */}
+      {nextMatch && (
+        <div style={{ ...styles.card, background: 'linear-gradient(135deg,rgba(100,181,246,.07),transparent)', border: '1px solid rgba(100,181,246,.15)', marginBottom: '1.5rem' }}>
+          <div style={styles.cardTitle}>📅 Next Fixture</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.6rem', marginBottom: '.3rem' }}>
+                {nextMatch.home_team} vs {nextMatch.away_team}
+              </div>
+              <div style={{ fontSize: '.8rem', color: '#5A7A5E', marginBottom: '.3rem' }}>
+                Gameweek {nextMatch.matchday}
+              </div>
+              <div style={{ fontSize: '.75rem', color: '#5A7A5E' }}>
+                📍 {nextMatch.venue || 'TBD'}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#64B5F6', textTransform: 'uppercase', marginBottom: '.3rem' }}>Kickoff</div>
+              <div style={{ fontSize: '.85rem', fontWeight: '700' }}>
+                {nextMatch.kickoff_time ? new Date(nextMatch.kickoff_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      <PointsSystem />
-
       <div style={styles.twoCol}>
-        {/* Matches */}
+        {/* Upcoming & Recent Matches */}
         <div style={styles.card}>
-          <div style={styles.cardTitle}>📅 Matches</div>
+          <div style={styles.cardTitle}>📋 Recent Matches</div>
           {upcoming.length === 0 && completed.length === 0 ? (
             <div style={styles.empty}>No matches scheduled</div>
           ) : (
             <>
-              {upcoming.map(m => (
+              {upcoming.slice(0, 3).map(m => (
                 <div key={m.id} style={styles.matchRow}>
                   <div style={styles.gwBadge}>GW{m.matchday}</div>
                   <div style={{ flex: 1 }}>
                     <div style={styles.matchTeams}>{m.home_team} vs {m.away_team}</div>
-                    <div style={styles.matchMeta}>{m.venue || 'TBD'} · {m.kickoff_time ? new Date(m.kickoff_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}</div>
+                    <div style={styles.matchMeta}>{m.venue || 'TBD'}</div>
                   </div>
                   <span style={{ ...styles.statusBadge, background: 'rgba(100,181,246,.1)', color: '#64B5F6' }}>Soon</span>
                 </div>
               ))}
-              {completed.slice(0, 3).map(m => (
+              {completed.slice(0, 2).map(m => (
                 <div key={m.id} style={styles.matchRow}>
                   <div style={styles.gwBadge}>GW{m.matchday}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={styles.matchTeams}>{m.home_team} <span style={{ color: '#E8F5E9', fontFamily: 'Bebas Neue, sans-serif' }}>{m.home_score ?? 0}—{m.away_score ?? 0}</span> {m.away_team}</div>
+                    <div style={styles.matchTeams}>{m.home_team} <span style={{ color: '#E8F5E9', fontFamily: 'Bebas Neue, sans-serif', fontWeight: '700' }}>{m.home_score ?? 0}—{m.away_score ?? 0}</span> {m.away_team}</div>
                     <div style={styles.matchMeta}>{m.venue || 'TBD'}</div>
                   </div>
                   <span style={{ ...styles.statusBadge, background: 'rgba(90,122,94,.1)', color: '#5A7A5E' }}>FT</span>
@@ -155,7 +171,7 @@ export default function Home({ manager }) {
 
         {/* Top Players */}
         <div style={styles.card}>
-          <div style={styles.cardTitle}>⭐ Top Players</div>
+          <div style={styles.cardTitle}>⭐ Top Scorers</div>
           {topPlayers.length === 0 ? (
             <div style={styles.empty}>No players yet</div>
           ) : topPlayers.map((p, i) => (
@@ -173,20 +189,24 @@ export default function Home({ manager }) {
       </div>
 
       {/* Announcements */}
-      <div style={{ ...styles.card, marginTop: '1.2rem', background: 'linear-gradient(135deg,rgba(0,230,118,.05),transparent)', border: '1px solid rgba(0,230,118,.15)' }}>
-        <div style={styles.cardTitle}>📢 Announcements</div>
-        {announcements.length === 0 ? (
-          <p style={{ color: '#5A7A5E', fontSize: '.88rem' }}>No announcements yet.</p>
-        ) : announcements.map(a => (
-          <div key={a.id} style={{ paddingBottom: '.8rem', marginBottom: '.8rem', borderBottom: '1px solid rgba(30,46,32,.5)' }}>
-            <div style={{ fontWeight: '700', fontSize: '.85rem', marginBottom: '.3rem' }}>{a.is_pinned && '📌 '}{a.title}</div>
-            <div style={{ color: '#5A7A5E', fontSize: '.82rem', lineHeight: 1.6 }}>{a.body}</div>
-            <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>
-              {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+      {announcements.length > 0 && (
+        <div style={{ ...styles.card, marginTop: '1.2rem', background: 'linear-gradient(135deg,rgba(0,230,118,.05),transparent)', border: '1px solid rgba(0,230,118,.15)' }}>
+          <div style={styles.cardTitle}>📢 Announcements</div>
+          {announcements.map(a => (
+            <div key={a.id} style={{ paddingBottom: '.8rem', marginBottom: '.8rem', borderBottom: '1px solid rgba(30,46,32,.5)' }}>
+              <div style={{ fontWeight: '700', fontSize: '.85rem', marginBottom: '.3rem' }}>
+                {a.is_pinned && '📌 '}{a.title}
+              </div>
+              <div style={{ color: '#5A7A5E', fontSize: '.82rem', lineHeight: 1.6 }}>
+                {a.body}
+              </div>
+              <div style={{ fontSize: '.65rem', color: '#5A7A5E', marginTop: '.3rem' }}>
+                {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -196,35 +216,12 @@ const styles = {
   liveTag: { fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', color: '#00E676', marginBottom: '.3rem' },
   liveFixture: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', lineHeight: 1 },
   liveMeta: { fontSize: '.72rem', color: '#5A7A5E', marginTop: '.2rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: '1rem', marginBottom: '1.5rem' },
-  statCard: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.2rem' },
-  statIcon: { fontSize: '1.2rem', marginBottom: '.4rem' },
-  statLabel: { fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' },
-  statValue: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', lineHeight: 1 },
-  
-  // Manager of the Week styles
-  motw: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1.2rem',
-    background: 'linear-gradient(135deg,rgba(255,215,0,.1),rgba(0,230,118,.05))',
-    border: '2px solid rgba(255,215,0,.3)',
-    borderRadius: '12px',
-    padding: '1.2rem 1.5rem',
-    marginBottom: '1.5rem',
-    position: 'relative',
-    overflow: 'hidden'
-  },
-  motwIcon: { fontSize: '3rem', lineHeight: 1 },
-  motwContent: { flex: 1 },
-  motwLabel: { fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.2rem' },
-  motwGameweek: { fontSize: '.75rem', color: '#5A7A5E', marginBottom: '.3rem' },
-  motwManager: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: '#E8F5E9', lineHeight: 1.2, marginBottom: '.2rem' },
-  motwPoints: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: '#FFD700', lineHeight: 1 },
-  motwBadge: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '60px', height: '60px', background: 'linear-gradient(135deg,#FFD700,#FFA500)', borderRadius: '50%', flexShrink: 0, boxShadow: '0 4px 12px rgba(255,215,0,.25)' },
-  motwRank: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', fontWeight: '900', color: '#080C0A', textShadow: '0 2px 4px rgba(0,0,0,.3)' },
-
-  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '1.2rem' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: '.8rem', marginBottom: '1.5rem' },
+  statCard: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1rem' },
+  statIcon: { fontSize: '1.2rem', marginBottom: '.3rem' },
+  statLabel: { fontSize: '.62rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' },
+  statValue: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.6rem', lineHeight: 1 },
+  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '1.2rem', marginBottom: '1.2rem' },
   card: { background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' },
   cardTitle: { fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' },
   empty: { color: '#5A7A5E', fontSize: '.85rem', padding: '.5rem 0' },
