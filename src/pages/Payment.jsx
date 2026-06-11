@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useTheme } from '../lib/ThemeContext'
 
 export default function Payment({ session, onDone, onLogout }) {
+  const { c } = useTheme()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -11,6 +13,29 @@ export default function Payment({ session, onDone, onLogout }) {
     matric_number: session?.user?.user_metadata?.matric_number || '',
     transaction_id: ''
   })
+
+  const styles = {
+    wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
+    bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/funaab-fantasy-league/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
+    overlay: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88))', zIndex: 1 },
+    card: { position: 'relative', zIndex: 2, background: c.surface, border: `1px solid ${c.border}`, padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '.85rem', margin: '1rem', backdropFilter: 'blur(20px)', maxHeight: '90vh', overflowY: 'auto' },
+    logo: { width: '50px', height: '50px', objectFit: 'contain', margin: '0 auto', display: 'block' },
+    title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.7rem', textAlign: 'center', color: c.text, letterSpacing: '2px' },
+    steps: { display: 'flex', gap: '.5rem', justifyContent: 'center' },
+    step: { width: '28px', height: '28px', borderRadius: '50%', background: c.border, color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: '800' },
+    stepActive: { background: c.green, color: c.bg },
+    payBox: { background: `rgba(${c.greenRgb},.04)`, border: `1px solid rgba(${c.greenRgb},.15)`, borderRadius: '12px', padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '.5rem' },
+    payTitle: { fontSize: '.7rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: c.muted, marginBottom: '.3rem' },
+    payStep: { fontSize: '.82rem', color: c.muted, lineHeight: 1.6 },
+    payNumber: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: c.green, textAlign: 'center', letterSpacing: '3px' },
+    payBank: { fontSize: '.75rem', fontWeight: '800', color: c.muted, textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase' },
+    input: { padding: '.8rem 1rem', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.surface, color: c.text, fontSize: '.88rem', outline: 'none', width: '100%' },
+    button: { padding: '.9rem', borderRadius: '8px', background: c.green, color: c.bg, fontWeight: '800', fontSize: '.88rem', border: 'none', cursor: 'pointer', letterSpacing: '2px' },
+    outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, fontWeight: '700', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' },
+    uploadLabel: { display: 'block', padding: '.8rem', borderRadius: '8px', border: `1px dashed ${c.border}`, color: c.muted, fontSize: '.82rem', fontWeight: '700', textAlign: 'center', cursor: 'pointer' },
+    error: { color: c.red, fontSize: '.78rem', textAlign: 'center', background: `rgba(${c.redRgb},0.08)`, border: `1px solid rgba(${c.redRgb},0.2)`, padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
+    footer: { borderTop: `1px solid ${c.border}`, paddingTop: '.85rem', textAlign: 'center', fontSize: '.6rem', fontWeight: '700', letterSpacing: '2px', color: c.muted, textTransform: 'uppercase' }
+  }
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -73,7 +98,7 @@ export default function Payment({ session, onDone, onLogout }) {
             <div style={styles.payBox}>
               <div style={styles.payTitle}>💳 Payment Instructions</div>
               <div style={styles.payStep}>1. Open your OPay app</div>
-              <div style={styles.payStep}>2. Transfer <strong style={{ color: '#00E676' }}>₦500</strong> to:</div>
+              <div style={styles.payStep}>2. Transfer <strong style={{ color: c.green }}>₦500</strong> to:</div>
               <div style={styles.payNumber}>9036997098</div>
               <div style={styles.payBank}>OPay</div>
               <div style={styles.payStep}>3. Save your transaction receipt</div>
@@ -107,27 +132,4 @@ export default function Payment({ session, onDone, onLogout }) {
       </div>
     </div>
   )
-}
-
-const styles = {
-  wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
-  bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/funaab-fantasy-league/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
-  overlay: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88))', zIndex: 1 },
-  card: { position: 'relative', zIndex: 2, background: 'rgba(13,20,16,0.95)', border: '1px solid #1E2E20', padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '.85rem', margin: '1rem', backdropFilter: 'blur(20px)', maxHeight: '90vh', overflowY: 'auto' },
-  logo: { width: '50px', height: '50px', objectFit: 'contain', margin: '0 auto', display: 'block' },
-  title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.7rem', textAlign: 'center', color: '#E8F5E9', letterSpacing: '2px' },
-  steps: { display: 'flex', gap: '.5rem', justifyContent: 'center' },
-  step: { width: '28px', height: '28px', borderRadius: '50%', background: '#1E2E20', color: '#5A7A5E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: '800' },
-  stepActive: { background: '#00E676', color: '#080C0A' },
-  payBox: { background: 'rgba(0,230,118,.04)', border: '1px solid rgba(0,230,118,.15)', borderRadius: '12px', padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '.5rem' },
-  payTitle: { fontSize: '.7rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' },
-  payStep: { fontSize: '.82rem', color: '#5A7A5E', lineHeight: 1.6 },
-  payNumber: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: '#00E676', textAlign: 'center', letterSpacing: '3px' },
-  payBank: { fontSize: '.75rem', fontWeight: '800', color: '#5A7A5E', textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase' },
-  input: { padding: '.8rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#0D1410', color: '#E8F5E9', fontSize: '.88rem', outline: 'none', width: '100%' },
-  button: { padding: '.9rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.88rem', border: 'none', cursor: 'pointer', letterSpacing: '2px' },
-  outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'transparent', border: '1px solid #1E2E20', color: '#5A7A5E', fontWeight: '700', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' },
-  uploadLabel: { display: 'block', padding: '.8rem', borderRadius: '8px', border: '1px dashed #1E2E20', color: '#5A7A5E', fontSize: '.82rem', fontWeight: '700', textAlign: 'center', cursor: 'pointer' },
-  error: { color: '#EF9A9A', fontSize: '.78rem', textAlign: 'center', background: 'rgba(239,154,154,0.08)', border: '1px solid rgba(239,154,154,0.2)', padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
-  footer: { borderTop: '1px solid #1E2E20', paddingTop: '.85rem', textAlign: 'center', fontSize: '.6rem', fontWeight: '700', letterSpacing: '2px', color: '#5A7A5E', textTransform: 'uppercase' }
 }

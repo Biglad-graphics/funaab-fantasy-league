@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useTheme } from '../lib/ThemeContext'
 
 export default function Profile({ manager, onUpdate, onLogout }) {
+  const { c } = useTheme()
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState(null)
@@ -11,6 +13,12 @@ export default function Profile({ manager, onUpdate, onLogout }) {
     department: manager?.department || '',
     full_name: manager?.full_name || ''
   })
+
+  const styles = {
+    input: { width: '100%', padding: '.8rem 1rem', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.bg, color: c.text, fontSize: '.88rem', outline: 'none' },
+    btn: { flex: 1, padding: '.8rem 1.5rem', borderRadius: '8px', background: c.green, color: c.bg, fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
+    outlineBtn: { flex: 1, padding: '.8rem 1.5rem', borderRadius: '8px', background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, fontWeight: '700', fontSize: '.85rem', cursor: 'pointer' }
+  }
 
   useEffect(() => {
     const fetchPredStats = async () => {
@@ -57,24 +65,24 @@ export default function Profile({ manager, onUpdate, onLogout }) {
 
   return (
     <div>
-      {toast && <div style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: '#111A13', border: `1px solid ${toast.bad ? '#EF9A9A' : '#00E676'}`, color: toast.bad ? '#EF9A9A' : '#E8F5E9', padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
+      {toast && <div style={{ position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', background: c.card, border: `1px solid ${toast.bad ? c.red : c.green}`, color: toast.bad ? c.red : c.text, padding: '.7rem 1.5rem', borderRadius: '8px', fontSize: '.82rem', fontWeight: '700', zIndex: 9999 }}>{toast.msg}</div>}
 
-      <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>👤 Account</div>
-      <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1.5rem' }}>My Profile</h1>
+      <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: c.green, marginBottom: '.5rem' }}>👤 Account</div>
+      <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '1.5rem', color: c.text }}>My Profile</h1>
 
       {/* Avatar & Name */}
-      <div style={{ background: 'linear-gradient(135deg,rgba(0,230,118,.07),transparent)', border: '1px solid rgba(0,230,118,.2)', borderRadius: '16px', padding: '2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#1E2E20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: '#00E676', flexShrink: 0 }}>
+      <div style={{ background: `linear-gradient(135deg,rgba(${c.greenRgb},.07),transparent)`, border: `1px solid rgba(${c.greenRgb},.2)`, borderRadius: '16px', padding: '2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: c.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', color: c.green, flexShrink: 0 }}>
           {(manager?.team_name || manager?.full_name || '?').charAt(0).toUpperCase()}
         </div>
         <div>
-          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', lineHeight: 1 }}>{manager?.team_name || '—'}</div>
-          <div style={{ color: '#5A7A5E', fontSize: '.85rem', marginTop: '.3rem' }}>{manager?.full_name}</div>
-          <div style={{ color: '#5A7A5E', fontSize: '.8rem' }}>{manager?.department}</div>
+          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', lineHeight: 1, color: c.text }}>{manager?.team_name || '—'}</div>
+          <div style={{ color: c.muted, fontSize: '.85rem', marginTop: '.3rem' }}>{manager?.full_name}</div>
+          <div style={{ color: c.muted, fontSize: '.8rem' }}>{manager?.department}</div>
         </div>
         <div style={{ marginLeft: 'auto' }}>
-          <div style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.2rem' }}>Status</div>
-          <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: 'rgba(0,230,118,.1)', color: '#00E676' }}>
+          <div style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: c.muted, marginBottom: '.2rem' }}>Status</div>
+          <span style={{ fontSize: '.72rem', fontWeight: '800', letterSpacing: '1px', padding: '.3rem .8rem', borderRadius: '100px', background: `rgba(${c.greenRgb},.1)`, color: c.green }}>
             ✓ Verified
           </span>
         </div>
@@ -83,24 +91,24 @@ export default function Profile({ manager, onUpdate, onLogout }) {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {[
-          { label: 'Total Points', value: manager?.total_points ?? 0, color: '#00E676' },
-          { label: 'Predictions', value: predStats.total, color: '#64B5F6' },
-          { label: 'Correct', value: predStats.correct, color: '#FFD700' },
-          { label: 'Accuracy', value: predStats.total > 0 ? Math.round((predStats.correct / predStats.total) * 100) + '%' : '—', color: '#E8F5E9' }
+          { label: 'Total Points', value: manager?.total_points ?? 0, color: c.green },
+          { label: 'Predictions', value: predStats.total, color: c.blue },
+          { label: 'Correct', value: predStats.correct, color: c.gold },
+          { label: 'Accuracy', value: predStats.total > 0 ? Math.round((predStats.correct / predStats.total) * 100) + '%' : '—', color: c.text }
         ].map(s => (
-          <div key={s.label} style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.2rem' }}>
-            <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' }}>{s.label}</div>
+          <div key={s.label} style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: '12px', padding: '1.2rem' }}>
+            <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: c.muted, marginBottom: '.3rem' }}>{s.label}</div>
             <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: s.color }}>{s.value}</div>
           </div>
         ))}
       </div>
 
       {/* Edit Profile */}
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1rem' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: '12px', padding: '1.4rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase' }}>Profile Details</div>
+          <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', color: c.text }}>Profile Details</div>
           {!editing && (
-            <button onClick={() => setEditing(true)} style={{ background: 'transparent', border: '1px solid #1E2E20', color: '#5A7A5E', padding: '.4rem .9rem', borderRadius: '6px', fontSize: '.75rem', fontWeight: '700', cursor: 'pointer' }}>
+            <button onClick={() => setEditing(true)} style={{ background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, padding: '.4rem .9rem', borderRadius: '6px', fontSize: '.75rem', fontWeight: '700', cursor: 'pointer' }}>
               Edit
             </button>
           )}
@@ -109,15 +117,15 @@ export default function Profile({ manager, onUpdate, onLogout }) {
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
             <div>
-              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Display Name</div>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: c.muted, marginBottom: '.3rem', textTransform: 'uppercase' }}>Display Name</div>
               <input style={styles.input} value={form.team_name} onChange={e => setForm({ ...form, team_name: e.target.value })} placeholder="Display Name" />
             </div>
             <div>
-              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Full Name</div>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: c.muted, marginBottom: '.3rem', textTransform: 'uppercase' }}>Full Name</div>
               <input style={styles.input} value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Full Name" />
             </div>
             <div>
-              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Department</div>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: c.muted, marginBottom: '.3rem', textTransform: 'uppercase' }}>Department</div>
               <input style={styles.input} value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} placeholder="Department" />
             </div>
             <div style={{ display: 'flex', gap: '.5rem' }}>
@@ -133,9 +141,9 @@ export default function Profile({ manager, onUpdate, onLogout }) {
               { label: 'Department', value: manager?.department },
               { label: 'Matric Number', value: manager?.matric_number }
             ].map(f => (
-              <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '.6rem 0', borderBottom: '1px solid #1E2E20' }}>
-                <span style={{ fontSize: '.78rem', color: '#5A7A5E', fontWeight: '700' }}>{f.label}</span>
-                <span style={{ fontSize: '.82rem', fontWeight: '600' }}>{f.value || '—'}</span>
+              <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '.6rem 0', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: '.78rem', color: c.muted, fontWeight: '700' }}>{f.label}</span>
+                <span style={{ fontSize: '.82rem', fontWeight: '600', color: c.text }}>{f.value || '—'}</span>
               </div>
             ))}
           </div>
@@ -143,19 +151,13 @@ export default function Profile({ manager, onUpdate, onLogout }) {
       </div>
 
       {/* Account Actions */}
-      <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
-        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem' }}>Account Actions</div>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: '12px', padding: '1.4rem' }}>
+        <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: c.text }}>Account Actions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
           <button style={styles.outlineBtn} onClick={handlePasswordReset}>🔑 Reset Password</button>
-          <button style={{ ...styles.outlineBtn, borderColor: '#EF9A9A', color: '#EF9A9A' }} onClick={onLogout}>🚪 Logout</button>
+          <button style={{ ...styles.outlineBtn, borderColor: c.red, color: c.red }} onClick={onLogout}>🚪 Logout</button>
         </div>
       </div>
     </div>
   )
-}
-
-const styles = {
-  input: { width: '100%', padding: '.8rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '.88rem', outline: 'none' },
-  btn: { flex: 1, padding: '.8rem 1.5rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.85rem', border: 'none', cursor: 'pointer', letterSpacing: '1px' },
-  outlineBtn: { flex: 1, padding: '.8rem 1.5rem', borderRadius: '8px', background: 'transparent', border: '1px solid #1E2E20', color: '#5A7A5E', fontWeight: '700', fontSize: '.85rem', cursor: 'pointer' }
 }

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useTheme } from '../lib/ThemeContext'
 
 export default function Landing({ setPage }) {
+  const { theme, c, toggle } = useTheme()
   const [matches, setMatches] = useState([])
 
   useEffect(() => {
@@ -24,17 +26,20 @@ export default function Landing({ setPage }) {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#080C0A', color: '#E8F5E9', fontFamily: 'Bricolage Grotesque, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: c.bg, color: c.text, fontFamily: 'Bricolage Grotesque, sans-serif' }}>
       {/* Nav */}
-      <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'rgba(8,12,10,0.97)', borderBottom: '1px solid #1E2E20', backdropFilter: 'blur(10px)' }}>
+      <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: c.navBg, borderBottom: `1px solid ${c.border}`, backdropFilter: 'blur(10px)' }}>
         <img src="/logo.png" alt="Funaabsu League Prediction" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
-        <div style={{ display: 'flex', gap: '.5rem' }}>
-          <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid #1E2E20', color: '#E8F5E9', padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer' }}>Login</button>
-          <button onClick={() => setPage('register')} style={{ background: '#00E676', border: 'none', color: '#080C0A', padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '800', cursor: 'pointer' }}>Register</button>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+          <button onClick={toggle} style={{ background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, padding: '.4rem .6rem', borderRadius: '6px', fontSize: '.88rem', cursor: 'pointer' }}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <button onClick={() => setPage('login')} style={{ background: 'transparent', border: `1px solid ${c.border}`, color: c.text, padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer' }}>Login</button>
+          <button onClick={() => setPage('register')} style={{ background: c.green, border: 'none', color: c.bg, padding: '.5rem 1.2rem', borderRadius: '6px', fontSize: '.8rem', fontWeight: '800', cursor: 'pointer' }}>Register</button>
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero — keep overlay hardcoded dark since bg image is always dark */}
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', padding: '8rem 2rem 4rem', textAlign: 'center' }}>
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/funaab-fantasy-league/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.25)', transform: 'scale(1.05)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.5), rgba(8,12,10,0.9))' }} />
@@ -52,7 +57,7 @@ export default function Landing({ setPage }) {
             <button onClick={() => setPage('register')} style={{ background: '#00E676', border: 'none', color: '#080C0A', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '1px' }}>
               Join for ₦500
             </button>
-            <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid #1E2E20', color: '#E8F5E9', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer' }}>
+            <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#E8F5E9', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer' }}>
               Login
             </button>
           </div>
@@ -60,33 +65,33 @@ export default function Landing({ setPage }) {
       </div>
 
       {/* Stats Bar */}
-      <div style={{ background: '#111A13', borderTop: '1px solid #1E2E20', borderBottom: '1px solid #1E2E20', padding: '1.5rem 2rem', display: 'flex', justifyContent: 'center', gap: '3rem', flexWrap: 'wrap' }}>
+      <div style={{ background: c.card, borderTop: `1px solid ${c.border}`, borderBottom: `1px solid ${c.border}`, padding: '1.5rem 2rem', display: 'flex', justifyContent: 'center', gap: '3rem', flexWrap: 'wrap' }}>
         {[['₦500', 'Entry Fee'], ['+5 pts', 'Correct Score'], ['+3 pts', 'Correct Outcome'], ['🏆', 'Win the Prize']].map(([val, lbl]) => (
           <div key={lbl} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.2rem', color: '#00E676', lineHeight: 1 }}>{val}</div>
-            <div style={{ fontSize: '.7rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: '#5A7A5E' }}>{lbl}</div>
+            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.2rem', color: c.green, lineHeight: 1 }}>{val}</div>
+            <div style={{ fontSize: '.7rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: c.muted }}>{lbl}</div>
           </div>
         ))}
       </div>
 
       {/* Scoreboard */}
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '3rem 2rem' }}>
-        <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-          <span style={{ display: 'inline-block', width: '7px', height: '7px', background: '#00E676', borderRadius: '50%' }} />
+        <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: c.green, marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+          <span style={{ display: 'inline-block', width: '7px', height: '7px', background: c.green, borderRadius: '50%' }} />
           Live Scoreboard
         </div>
-        <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '1.5rem' }}>Match Results</h2>
-        <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', overflow: 'hidden' }}>
+        <h2 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '1.5rem', color: c.text }}>Match Results</h2>
+        <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: '12px', overflow: 'hidden' }}>
           {matches.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No matches yet this season</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: c.muted }}>No matches yet this season</div>
           ) : matches.map(m => (
-            <div key={m.id} style={{ padding: '.9rem 1.4rem', borderBottom: '1px solid rgba(30,46,32,.5)', display: 'grid', gridTemplateColumns: '60px 1fr 100px', alignItems: 'center', gap: '1rem' }}>
+            <div key={m.id} style={{ padding: '.9rem 1.4rem', borderBottom: `1px solid rgba(${c.borderRgb},.5)`, display: 'grid', gridTemplateColumns: '60px 1fr 100px', alignItems: 'center', gap: '1rem' }}>
               {/* Status */}
               {(() => {
                 const isLive = m.status !== 'completed' && m.kickoff_time && new Date() >= new Date(m.kickoff_time)
                 const isCompleted = m.status === 'completed'
                 return (
-                  <span style={{ fontSize: '.6rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', padding: '.2rem .5rem', borderRadius: '100px', textAlign: 'center', background: isLive ? 'rgba(0,230,118,.1)' : isCompleted ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: isLive ? '#00E676' : isCompleted ? '#5A7A5E' : '#64B5F6' }}>
+                  <span style={{ fontSize: '.6rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', padding: '.2rem .5rem', borderRadius: '100px', textAlign: 'center', background: isLive ? `rgba(${c.greenRgb},.1)` : isCompleted ? `rgba(${c.mutedRgb},.1)` : `rgba(${c.blueRgb},.1)`, color: isLive ? c.green : isCompleted ? c.muted : c.blue }}>
                     {isLive ? '🔴 Live' : isCompleted ? 'FT' : 'Soon'}
                   </span>
                 )
@@ -94,24 +99,24 @@ export default function Landing({ setPage }) {
 
               {/* Match + Score */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.8rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '700', fontSize: '.88rem', textAlign: 'right', flex: 1 }}>{m.home_team}</span>
-                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: (m.status !== 'completed' && m.kickoff_time && new Date() >= new Date(m.kickoff_time)) ? '#00E676' : m.status === 'completed' ? '#E8F5E9' : '#5A7A5E', flexShrink: 0, minWidth: '50px', textAlign: 'center' }}>
+                <span style={{ fontWeight: '700', fontSize: '.88rem', textAlign: 'right', flex: 1, color: c.text }}>{m.home_team}</span>
+                <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: (m.status !== 'completed' && m.kickoff_time && new Date() >= new Date(m.kickoff_time)) ? c.green : m.status === 'completed' ? c.text : c.muted, flexShrink: 0, minWidth: '50px', textAlign: 'center' }}>
                   {m.status === 'completed' || (m.kickoff_time && new Date() >= new Date(m.kickoff_time)) ? `${m.home_score ?? 0} — ${m.away_score ?? 0}` : 'vs'}
                 </span>
-                <span style={{ fontWeight: '700', fontSize: '.88rem', flex: 1 }}>{m.away_team}</span>
+                <span style={{ fontWeight: '700', fontSize: '.88rem', flex: 1, color: c.text }}>{m.away_team}</span>
               </div>
 
               {/* Venue */}
-              <div style={{ fontSize: '.72rem', color: '#5A7A5E', textAlign: 'right' }}>{m.venue || 'TBD'}</div>
+              <div style={{ fontSize: '.72rem', color: c.muted, textAlign: 'right' }}>{m.venue || 'TBD'}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: '1px solid #1E2E20', padding: '2rem', textAlign: 'center' }}>
-        <p style={{ fontSize: '.72rem', color: '#5A7A5E' }}>© 2025 Funaabsu League Prediction. All rights reserved.</p>
+      <div style={{ borderTop: `1px solid ${c.border}`, padding: '2rem', textAlign: 'center' }}>
+        <p style={{ fontSize: '.72rem', color: c.muted }}>© 2025 Funaabsu League Prediction. All rights reserved.</p>
       </div>
     </div>
   )
-      }
+}
