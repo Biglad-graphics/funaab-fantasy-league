@@ -76,13 +76,24 @@ export default function Admin() {
 
     const { data: preds } = await supabase.from('predictions').select('*').eq('match_id', match.id)
     const managerPointsMap = {}
+    const totalGoals = homeScore + awayScore
 
     for (const pred of preds || []) {
       let pts = 0
+      // Outcome / score points
       if (pred.home_score_pred === homeScore && pred.away_score_pred === awayScore) {
-        pts = 5
+        pts += 5
       } else if (pred.predicted_outcome === outcome) {
-        pts = 3
+        pts += 3
+      }
+      // Goals range bonus (+2 pts, stacks independently)
+      if (pred.goals_range_pred) {
+        const goalCorrect =
+          (pred.goals_range_pred === 'UNDER_1.5' && totalGoals < 2) ||
+          (pred.goals_range_pred === 'OVER_1.5' && totalGoals >= 2) ||
+          (pred.goals_range_pred === 'OVER_2.5' && totalGoals >= 3) ||
+          (pred.goals_range_pred === 'OVER_3.5' && totalGoals >= 4)
+        if (goalCorrect) pts += 2
       }
       managerPointsMap[pred.manager_id] = (managerPointsMap[pred.manager_id] || 0) + pts
       await supabase.from('predictions').update({ points_earned: pts }).eq('id', pred.id)

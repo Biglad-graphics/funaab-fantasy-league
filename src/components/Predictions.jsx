@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const GOAL_RANGES = [
+  { value: 'UNDER_1.5', label: 'Under 1.5', sub: '0–1 goals' },
+  { value: 'OVER_1.5', label: 'Over 1.5', sub: '2+ goals' },
+  { value: 'OVER_2.5', label: 'Over 2.5', sub: '3+ goals' },
+  { value: 'OVER_3.5', label: 'Over 3.5', sub: '4+ goals' },
+]
+
+function checkGoalsRange(rangePred, totalGoals) {
+  if (!rangePred) return false
+  if (rangePred === 'UNDER_1.5') return totalGoals < 2
+  if (rangePred === 'OVER_1.5') return totalGoals >= 2
+  if (rangePred === 'OVER_2.5') return totalGoals >= 3
+  if (rangePred === 'OVER_3.5') return totalGoals >= 4
+  return false
+}
+
 export default function Predictions({ manager }) {
   const [matches, setMatches] = useState([])
   const [predictions, setPredictions] = useState({})
@@ -29,14 +45,15 @@ export default function Predictions({ manager }) {
     setLoading(false)
   }
 
-  const savePrediction = async (matchId, outcome, homeScore, awayScore) => {
+  const savePrediction = async (matchId, outcome, homeScore, awayScore, goalsRange) => {
     const existing = predictions[matchId]
     const payload = {
       manager_id: manager.id,
       match_id: matchId,
       predicted_outcome: outcome,
       home_score_pred: homeScore !== '' && homeScore !== null ? parseInt(homeScore) : null,
-      away_score_pred: awayScore !== '' && awayScore !== null ? parseInt(awayScore) : null
+      away_score_pred: awayScore !== '' && awayScore !== null ? parseInt(awayScore) : null,
+      goals_range_pred: goalsRange || null
     }
     let saveError = null
     if (existing) {
@@ -77,7 +94,7 @@ export default function Predictions({ manager }) {
       <div style={{ fontSize: '.7rem', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase', color: '#00E676', marginBottom: '.5rem' }}>🎯 Predict</div>
       <h1 style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 'clamp(2rem,5vw,3rem)', letterSpacing: '2px', marginBottom: '.5rem' }}>Predictions</h1>
       <p style={{ color: '#5A7A5E', fontSize: '.82rem', marginBottom: '1.5rem' }}>
-        Predict match outcomes before kickoff. <span style={{ color: '#00E676', fontWeight: '700' }}>Correct score = 5 pts</span> · <span style={{ color: '#64B5F6', fontWeight: '700' }}>Correct outcome = 3 pts</span>
+        Predict match outcomes before kickoff. <span style={{ color: '#00E676', fontWeight: '700' }}>Correct score = 5 pts</span> · <span style={{ color: '#64B5F6', fontWeight: '700' }}>Correct outcome = 3 pts</span> · <span style={{ color: '#FFD700', fontWeight: '700' }}>Goals range = +2 pts</span>
       </p>
 
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -135,12 +152,13 @@ function PredictionCard({ match, prediction, onSave }) {
   const isLive = !isCompleted && match.kickoff_time && now >= new Date(match.kickoff_time)
   const deadlinePassed = match.prediction_deadline
     ? now > new Date(match.prediction_deadline)
-    : !!isLive  // if no deadline set, lock at kickoff
+    : !!isLive
   const isLocked = isCompleted || isLive || deadlinePassed
 
   const [outcome, setOutcome] = useState(prediction?.predicted_outcome || null)
   const [homeScore, setHomeScore] = useState(prediction?.home_score_pred != null ? String(prediction.home_score_pred) : '')
   const [awayScore, setAwayScore] = useState(prediction?.away_score_pred != null ? String(prediction.away_score_pred) : '')
+  const [goalsRange, setGoalsRange] = useState(prediction?.goals_range_pred || null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState(null)
@@ -149,13 +167,14 @@ function PredictionCard({ match, prediction, onSave }) {
     setOutcome(prediction?.predicted_outcome || null)
     setHomeScore(prediction?.home_score_pred != null ? String(prediction.home_score_pred) : '')
     setAwayScore(prediction?.away_score_pred != null ? String(prediction.away_score_pred) : '')
+    setGoalsRange(prediction?.goals_range_pred || null)
   }, [prediction?.id, prediction?.predicted_outcome])
 
   const handleSave = async () => {
     if (!outcome) return
     setSaving(true)
     setSaveError(null)
-    const ok = await onSave(match.id, outcome, homeScore, awayScore)
+    const ok = await onSave(match.id, outcome, homeScore, awayScore, goalsRange)
     setSaving(false)
     if (ok) {
       setSaved(true)
@@ -166,10 +185,12 @@ function PredictionCard({ match, prediction, onSave }) {
   }
 
   const matchOutcome = match.result_outcome
+  const totalGoals = isCompleted ? (match.home_score || 0) + (match.away_score || 0) : 0
   const correctScore = isCompleted && prediction &&
     prediction.home_score_pred === match.home_score &&
     prediction.away_score_pred === match.away_score
   const correctOutcome = isCompleted && prediction && prediction.predicted_outcome === matchOutcome && !correctScore
+  const correctGoalsRange = isCompleted && prediction && checkGoalsRange(prediction.goals_range_pred, totalGoals)
 
   const predResultBadge = correctScore
     ? { text: '🎯 Correct Score! +5 pts', color: '#00E676', bg: 'rgba(0,230,118,.1)', border: '#00E676' }
@@ -220,14 +241,26 @@ function PredictionCard({ match, prediction, onSave }) {
         </div>
       )}
 
-      {/* Result badge (completed) */}
+      {/* Result badges (completed) */}
       {predResultBadge && (
-        <div style={{ padding: '.6rem', borderRadius: '8px', marginBottom: '.8rem', background: predResultBadge.bg, border: `1px solid ${predResultBadge.border}`, textAlign: 'center' }}>
+        <div style={{ padding: '.6rem', borderRadius: '8px', marginBottom: '.5rem', background: predResultBadge.bg, border: `1px solid ${predResultBadge.border}`, textAlign: 'center' }}>
           <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '1px', color: predResultBadge.color }}>{predResultBadge.text}</div>
           <div style={{ fontSize: '.68rem', color: '#5A7A5E', marginTop: '.25rem' }}>
             Your pick: {prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}
             {prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''}
           </div>
+        </div>
+      )}
+
+      {/* Goals range result badge */}
+      {isCompleted && prediction?.goals_range_pred && (
+        <div style={{ padding: '.45rem .7rem', borderRadius: '7px', marginBottom: '.8rem', background: correctGoalsRange ? 'rgba(255,215,0,.08)' : 'rgba(239,154,154,.06)', border: `1px solid ${correctGoalsRange ? 'rgba(255,215,0,.35)' : 'rgba(239,154,154,.2)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '.68rem', fontWeight: '800', color: correctGoalsRange ? '#FFD700' : '#EF9A9A' }}>
+            ⚽ {correctGoalsRange ? 'Correct Goals Range +2 pts' : 'Wrong Goals Range'}
+          </span>
+          <span style={{ fontSize: '.65rem', color: '#5A7A5E' }}>
+            {prediction.goals_range_pred.replace('_', ' ')} · {totalGoals} goals scored
+          </span>
         </div>
       )}
 
@@ -241,7 +274,7 @@ function PredictionCard({ match, prediction, onSave }) {
       {deadlinePassed && !isLive && !isCompleted && (
         <div style={{ padding: '.6rem 1rem', background: 'rgba(239,154,154,.06)', border: '1px solid rgba(239,154,154,.25)', borderRadius: '8px', textAlign: 'center', fontSize: '.72rem', fontWeight: '700', color: '#EF9A9A', letterSpacing: '1px' }}>
           {prediction
-            ? `Your pick: ${prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}${prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''} · Predictions closed 🔒`
+            ? `Your pick: ${prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}${prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''}${prediction.goals_range_pred ? ` · ${prediction.goals_range_pred.replace('_', ' ')} goals` : ''} · Predictions closed 🔒`
             : 'Predictions closed — no prediction submitted'
           }
         </div>
@@ -251,7 +284,7 @@ function PredictionCard({ match, prediction, onSave }) {
       {isLive && (
         <div style={{ padding: '.6rem 1rem', background: 'rgba(0,230,118,.1)', border: '1px solid #00E676', borderRadius: '8px', textAlign: 'center', fontSize: '.72rem', fontWeight: '700', color: '#00E676', letterSpacing: '1px' }}>
           {prediction
-            ? `Your pick: ${prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}${prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''} 🔒`
+            ? `Your pick: ${prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}${prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''}${prediction.goals_range_pred ? ` · ${prediction.goals_range_pred.replace('_', ' ')} goals` : ''} 🔒`
             : 'Match in progress — no prediction made'
           }
         </div>
@@ -285,6 +318,24 @@ function PredictionCard({ match, prediction, onSave }) {
               onChange={e => setAwayScore(e.target.value)}
               style={{ flex: 1, padding: '.5rem', borderRadius: '6px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '1rem', fontWeight: '700', textAlign: 'center', outline: 'none' }}
             />
+          </div>
+
+          <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.5rem' }}>Total goals range? (optional · +2 pts)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.4rem', marginBottom: '.8rem' }}>
+            {GOAL_RANGES.map(({ value, label, sub }) => (
+              <button key={value} onClick={() => setGoalsRange(goalsRange === value ? null : value)} style={{
+                padding: '.45rem .15rem', borderRadius: '8px',
+                border: goalsRange === value ? '2px solid #FFD700' : '1px solid #1E2E20',
+                background: goalsRange === value ? 'rgba(255,215,0,.1)' : '#111A13',
+                color: goalsRange === value ? '#FFD700' : '#5A7A5E',
+                fontWeight: '800', fontSize: '.58rem', letterSpacing: '.3px',
+                cursor: 'pointer', textTransform: 'uppercase', transition: 'all .15s',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.15rem'
+              }}>
+                <span>{label}</span>
+                <span style={{ fontWeight: '500', fontSize: '.5rem', opacity: 0.7 }}>{sub}</span>
+              </button>
+            ))}
           </div>
 
           {saveError && (
