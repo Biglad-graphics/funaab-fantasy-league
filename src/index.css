@@ -33,17 +33,7 @@ body::before {
 }
 
 button { cursor: pointer; }
-input, button { font-family: 'Bricolage Grotesque', sans-serif; }* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background: #0a0f1e;
-  color: #ffffff;
-}
+input, button { font-family: 'Bricolage Grotesque', sans-serif; }
 
 /* AUTH */
 .auth-wrap {
@@ -176,6 +166,7 @@ body {
   color: var(--muted);
   text-transform: uppercase;
 }
+
 /* NAV */
 .nav {
   position: fixed;
@@ -399,77 +390,6 @@ body[data-theme="light"] .auth-input {
 body[data-theme="light"] .auth-title,
 body[data-theme="light"] .auth-sub {
   color: #0D1F12;
-}
-
-/* LIGHT MODE */
-body[data-theme="light"] {
-  --green: #00A854;
-  --gold: #C8970A;
-  --dark: #F0F4F1;
-  --surface: #FFFFFF;
-  --card: #FFFFFF;
-  --border: #D4E4D8;
-  --text: #0D1F12;
-  --muted: #5A7A5E;
-  --red: #C0392B;
-  --blue: #2471A3;
-  background: #F0F4F1;
-  color: #0D1F12;
-}
-
-body[data-theme="light"] .nav {
-  background: rgba(240,244,241,0.97);
-  border-bottom: 1px solid var(--border);
-}
-
-body[data-theme="light"] .nav-btn {
-  color: #3A5A3E;
-}
-
-body[data-theme="light"] .nav-btn:hover {
-  background: rgba(0,168,84,0.08);
-}
-
-body[data-theme="light"] .hero-bg {
-  background: radial-gradient(ellipse 80% 60% at 50% 110%, rgba(0,168,84,0.08) 0%, transparent 70%);
-}
-
-body[data-theme="light"] .points-card,
-body[data-theme="light"] .sc,
-body[data-theme="light"] .leaderboard,
-body[data-theme="light"] .welcome-card {
-  background: #FFFFFF;
-  border-color: var(--border);
-}
-
-body[data-theme="light"] .stats-bar {
-  background: #FFFFFF;
-  border-color: var(--border);
-}
-
-body[data-theme="light"] .auth-card {
-  background: rgba(255,255,255,0.97);
-  border-color: var(--border);
-}
-
-body[data-theme="light"] .auth-input {
-  background: #F7FAF8;
-  border-color: var(--border);
-  color: #0D1F12;
-}
-
-body[data-theme="light"] .auth-title,
-body[data-theme="light"] .auth-sub {
-  color: #0D1F12;
-}
-body[data-theme="light"] {
-  background: #F0F4F1 !important;
-  color: #0D1F12 !important;
-}
-
-body[data-theme="dark"] {
-  background: #080C0A !important;
-  color: #E8F5E9 !important;
 }
 
 /* TRANSFERS */

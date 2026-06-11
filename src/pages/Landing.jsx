@@ -57,7 +57,7 @@ export default function Landing({ setPage }) {
             <button onClick={() => setPage('register')} style={{ background: '#00E676', border: 'none', color: '#080C0A', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '1px' }}>
               Join for ₦500
             </button>
-            <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#E8F5E9', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer' }}>
+            <button onClick={() => setPage('login')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#FFFFFF', padding: '1rem 2.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer' }}>
               Login
             </button>
           </div>
