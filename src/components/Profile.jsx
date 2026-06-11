@@ -1,15 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Profile({ manager, onUpdate, onLogout }) {
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState(null)
+  const [predStats, setPredStats] = useState({ total: 0, correct: 0 })
   const [form, setForm] = useState({
     team_name: manager?.team_name || '',
     department: manager?.department || '',
     full_name: manager?.full_name || ''
   })
+
+  useEffect(() => {
+    const fetchPredStats = async () => {
+      const { data } = await supabase
+        .from('predictions')
+        .select('points_earned, matches(status)')
+        .eq('manager_id', manager?.id)
+      const all = data || []
+      const completed = all.filter(p => p.matches?.status === 'completed')
+      setPredStats({ total: all.length, correct: completed.filter(p => (p.points_earned ?? 0) > 0).length })
+    }
+    if (manager?.id) fetchPredStats()
+  }, [manager?.id])
 
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
@@ -70,9 +84,9 @@ export default function Profile({ manager, onUpdate, onLogout }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {[
           { label: 'Total Points', value: manager?.total_points ?? 0, color: '#00E676' },
-          { label: 'Free Transfers', value: manager?.free_transfers ?? 1, color: '#64B5F6' },
-          { label: 'Budget Left', value: `₦${manager?.budget ?? 100}M`, color: '#FFD700' },
-          { label: 'Wildcard', value: manager?.wildcard_used ? 'Used' : 'Available', color: manager?.wildcard_used ? '#EF9A9A' : '#00E676' }
+          { label: 'Predictions', value: predStats.total, color: '#64B5F6' },
+          { label: 'Correct', value: predStats.correct, color: '#FFD700' },
+          { label: 'Accuracy', value: predStats.total > 0 ? Math.round((predStats.correct / predStats.total) * 100) + '%' : '—', color: '#E8F5E9' }
         ].map(s => (
           <div key={s.label} style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.2rem' }}>
             <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '.3rem' }}>{s.label}</div>
@@ -95,8 +109,8 @@ export default function Profile({ manager, onUpdate, onLogout }) {
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
             <div>
-              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Team Name</div>
-              <input style={styles.input} value={form.team_name} onChange={e => setForm({ ...form, team_name: e.target.value })} placeholder="Team Name" />
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Display Name</div>
+              <input style={styles.input} value={form.team_name} onChange={e => setForm({ ...form, team_name: e.target.value })} placeholder="Display Name" />
             </div>
             <div>
               <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: '#5A7A5E', marginBottom: '.3rem', textTransform: 'uppercase' }}>Full Name</div>
@@ -114,7 +128,7 @@ export default function Profile({ manager, onUpdate, onLogout }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
             {[
-              { label: 'Team Name', value: manager?.team_name },
+              { label: 'Display Name', value: manager?.team_name },
               { label: 'Full Name', value: manager?.full_name },
               { label: 'Department', value: manager?.department },
               { label: 'Matric Number', value: manager?.matric_number }
