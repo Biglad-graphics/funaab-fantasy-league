@@ -2,10 +2,8 @@ import { useState } from 'react'
 import Admin from '../components/Admin.jsx'
 import Home from '../components/Home.jsx'
 import Leaderboard from '../components/Leaderboard.jsx'
-import MyTeam from '../components/MyTeam.jsx'
-import Fixtures from '../components/Fixtures.jsx'
+import Predictions from '../components/Predictions.jsx'
 import Profile from '../components/Profile.jsx'
-import Players from '../components/Players.jsx'
 
 export default function Dashboard({ session, manager, onLogout, refetchManager }) {
   const [activePage, setActivePage] = useState('home')
@@ -13,11 +11,9 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
   const pages = [
     { id: 'home', label: 'Home', icon: '🏠' },
-    { id: 'fixtures', label: 'Fixtures', icon: '📅' },
+    { id: 'predictions', label: 'Predict', icon: '🎯' },
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
-    { id: 'myteam', label: 'My Team', icon: '⚽' },
     { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'players', label: 'Players', icon: '📊' },
     ...(manager?.is_admin ? [{ id: 'admin', label: 'Admin', icon: '🔐' }] : [])
   ]
 
@@ -34,7 +30,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
         <img src="/logo.png" alt="FFL" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
 
         {/* Desktop nav */}
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', '@media(maxWidth:640px)': { display: 'none' } }} className="desktop-nav">
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }} className="desktop-nav">
           {pages.map(p => (
             <button key={p.id} onClick={() => navigate(p.id)} style={{ background: activePage === p.id ? 'rgba(0,230,118,.09)' : 'transparent', border: activePage === p.id ? '1px solid #00E676' : '1px solid transparent', color: activePage === p.id ? '#00E676' : '#5A7A5E', padding: '.4rem .8rem', borderRadius: '6px', fontSize: '.72rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
               {p.label}
@@ -85,14 +81,12 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
       {/* Content */}
       <div style={{ padding: '5.5rem 1.5rem 5rem', maxWidth: '1100px', margin: '0 auto' }}>
-        {activePage === 'home' && <Home manager={manager} />}
-        {activePage === 'fixtures' && <Fixtures />}
+        {activePage === 'home' && <Home manager={manager} navigate={navigate} />}
+        {activePage === 'predictions' && <Predictions manager={manager} />}
         {activePage === 'leaderboard' && <Leaderboard manager={manager} />}
-        {activePage === 'myteam' && <MyTeam manager={manager} />}
         {activePage === 'profile' && <Profile manager={manager} onUpdate={refetchManager} onLogout={onLogout} />}
         {activePage === 'admin' && manager?.is_admin && <Admin />}
-        {activePage === 'players' && <Players />}
       </div>
     </div>
   )
-                   }
+}
