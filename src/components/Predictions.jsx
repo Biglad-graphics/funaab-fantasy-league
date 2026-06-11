@@ -20,6 +20,8 @@ function checkGoalsRange(rangePred, totalGoals) {
 export default function Predictions({ manager }) {
   const [matches, setMatches] = useState([])
   const [predictions, setPredictions] = useState({})
+  const [questions, setQuestions] = useState({}) // { match_id: [question, ...] }
+  const [answers, setAnswers] = useState({})     // { question_id: answerObj }
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
 
@@ -29,23 +31,35 @@ export default function Predictions({ manager }) {
       .channel('predictions-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'question_answers' }, fetchData)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [])
 
   const fetchData = async () => {
-    const [{ data: matchData }, { data: predData }] = await Promise.all([
+    const [{ data: matchData }, { data: predData }, { data: qData }, { data: ansData }] = await Promise.all([
       supabase.from('matches').select('*').order('kickoff_time', { ascending: true }),
-      supabase.from('predictions').select('*').eq('manager_id', manager.id)
+      supabase.from('predictions').select('*').eq('manager_id', manager.id),
+      supabase.from('match_questions').select('*').order('created_at'),
+      supabase.from('question_answers').select('*').eq('manager_id', manager.id)
     ])
     setMatches(matchData || [])
     const predMap = {}
     for (const p of predData || []) predMap[p.match_id] = p
     setPredictions(predMap)
+    const qMap = {}
+    for (const q of qData || []) {
+      if (!qMap[q.match_id]) qMap[q.match_id] = []
+      qMap[q.match_id].push(q)
+    }
+    setQuestions(qMap)
+    const ansMap = {}
+    for (const a of ansData || []) ansMap[a.question_id] = a
+    setAnswers(ansMap)
     setLoading(false)
   }
 
-  const savePrediction = async (matchId, outcome, homeScore, awayScore, goalsRange) => {
+  const savePrediction = async (matchId, outcome, homeScore, awayScore, goalsRange, questionAnswers) => {
     const existing = predictions[matchId]
     const payload = {
       manager_id: manager.id,
@@ -69,11 +83,26 @@ export default function Predictions({ manager }) {
       console.error('Prediction save error:', saveError.message)
       return false
     }
+
+    for (const [questionId, selectedOption] of Object.entries(questionAnswers || {})) {
+      if (!selectedOption) continue
+      const existingAns = answers[questionId]
+      if (existingAns) {
+        await supabase.from('question_answers').update({ selected_option: selectedOption }).eq('id', existingAns.id)
+      } else {
+        await supabase.from('question_answers').insert({
+          manager_id: manager.id,
+          question_id: questionId,
+          selected_option: selectedOption,
+          points_earned: 0
+        }).select()
+      }
+    }
+
     await fetchData()
     return true
   }
 
-  // Derive display status from time — admin never needs to press "Go Live"
   const effectiveStatus = (m) => {
     if (m.status === 'completed') return 'completed'
     if (m.kickoff_time && new Date() >= new Date(m.kickoff_time)) return 'live'
@@ -113,7 +142,7 @@ export default function Predictions({ manager }) {
         <section style={{ marginBottom: '2rem' }}>
           <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#00E676', marginBottom: '1rem' }}>🔴 Live Now</div>
           <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
-            {live.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} onSave={savePrediction} />)}
+            {live.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} questions={questions[m.id] || []} answers={answers} onSave={savePrediction} />)}
           </div>
         </section>
       )}
@@ -122,7 +151,7 @@ export default function Predictions({ manager }) {
         <section style={{ marginBottom: '2rem' }}>
           <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#64B5F6', marginBottom: '1rem' }}>⏰ Upcoming — Submit your prediction</div>
           <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
-            {upcoming.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} onSave={savePrediction} />)}
+            {upcoming.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} questions={questions[m.id] || []} answers={answers} onSave={savePrediction} />)}
           </div>
         </section>
       )}
@@ -131,7 +160,7 @@ export default function Predictions({ manager }) {
         <section>
           <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', marginBottom: '1rem' }}>✅ Completed Results</div>
           <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
-            {completed.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} onSave={savePrediction} />)}
+            {completed.map(m => <PredictionCard key={m.id} match={m} prediction={predictions[m.id]} questions={questions[m.id] || []} answers={answers} onSave={savePrediction} />)}
           </div>
         </section>
       )}
@@ -146,7 +175,7 @@ export default function Predictions({ manager }) {
   )
 }
 
-function PredictionCard({ match, prediction, onSave }) {
+function PredictionCard({ match, prediction, questions, answers, onSave }) {
   const now = new Date()
   const isCompleted = match.status === 'completed'
   const isLive = !isCompleted && match.kickoff_time && now >= new Date(match.kickoff_time)
@@ -159,6 +188,7 @@ function PredictionCard({ match, prediction, onSave }) {
   const [homeScore, setHomeScore] = useState(prediction?.home_score_pred != null ? String(prediction.home_score_pred) : '')
   const [awayScore, setAwayScore] = useState(prediction?.away_score_pred != null ? String(prediction.away_score_pred) : '')
   const [goalsRange, setGoalsRange] = useState(prediction?.goals_range_pred || null)
+  const [localAnswers, setLocalAnswers] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState(null)
@@ -170,11 +200,19 @@ function PredictionCard({ match, prediction, onSave }) {
     setGoalsRange(prediction?.goals_range_pred || null)
   }, [prediction?.id, prediction?.predicted_outcome])
 
+  useEffect(() => {
+    const map = {}
+    for (const q of questions) {
+      if (answers[q.id]) map[q.id] = answers[q.id].selected_option
+    }
+    setLocalAnswers(map)
+  }, [answers, questions])
+
   const handleSave = async () => {
     if (!outcome) return
     setSaving(true)
     setSaveError(null)
-    const ok = await onSave(match.id, outcome, homeScore, awayScore, goalsRange)
+    const ok = await onSave(match.id, outcome, homeScore, awayScore, goalsRange, localAnswers)
     setSaving(false)
     if (ok) {
       setSaved(true)
@@ -254,7 +292,7 @@ function PredictionCard({ match, prediction, onSave }) {
 
       {/* Goals range result badge */}
       {isCompleted && prediction?.goals_range_pred && (
-        <div style={{ padding: '.45rem .7rem', borderRadius: '7px', marginBottom: '.8rem', background: correctGoalsRange ? 'rgba(255,215,0,.08)' : 'rgba(239,154,154,.06)', border: `1px solid ${correctGoalsRange ? 'rgba(255,215,0,.35)' : 'rgba(239,154,154,.2)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '.45rem .7rem', borderRadius: '7px', marginBottom: '.5rem', background: correctGoalsRange ? 'rgba(255,215,0,.08)' : 'rgba(239,154,154,.06)', border: `1px solid ${correctGoalsRange ? 'rgba(255,215,0,.35)' : 'rgba(239,154,154,.2)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '.68rem', fontWeight: '800', color: correctGoalsRange ? '#FFD700' : '#EF9A9A' }}>
             ⚽ {correctGoalsRange ? 'Correct Goals Range +2 pts' : 'Wrong Goals Range'}
           </span>
@@ -264,13 +302,31 @@ function PredictionCard({ match, prediction, onSave }) {
         </div>
       )}
 
+      {/* Bonus question results (completed) */}
+      {isCompleted && questions.length > 0 && questions.map(q => {
+        const ans = answers[q.id]
+        if (!ans) return null
+        const isCorrect = q.correct_option && ans.selected_option === q.correct_option
+        const isWrong = q.correct_option && ans.selected_option !== q.correct_option
+        return (
+          <div key={q.id} style={{ padding: '.4rem .7rem', borderRadius: '7px', marginBottom: '.35rem', background: isCorrect ? 'rgba(255,215,0,.08)' : isWrong ? 'rgba(239,154,154,.06)' : 'rgba(90,122,94,.05)', border: `1px solid ${isCorrect ? 'rgba(255,215,0,.35)' : isWrong ? 'rgba(239,154,154,.2)' : '#1E2E20'}` }}>
+            <div style={{ fontSize: '.65rem', fontWeight: '800', color: isCorrect ? '#FFD700' : isWrong ? '#EF9A9A' : '#5A7A5E' }}>
+              {isCorrect ? `✓ +${q.points} pts` : isWrong ? '✗ Wrong' : '⏳ Pending'} — {q.question}
+            </div>
+            <div style={{ fontSize: '.6rem', color: '#5A7A5E', marginTop: '.1rem' }}>
+              Your answer: {ans.selected_option}{q.correct_option && isWrong ? ` · Correct: ${q.correct_option}` : ''}
+            </div>
+          </div>
+        )
+      })}
+
       {isCompleted && !prediction && (
         <div style={{ padding: '.6rem', borderRadius: '8px', marginBottom: '.8rem', background: 'rgba(90,122,94,.05)', border: '1px solid #1E2E20', textAlign: 'center', fontSize: '.72rem', color: '#5A7A5E' }}>
           No prediction submitted
         </div>
       )}
 
-      {/* Deadline passed but match not live yet */}
+      {/* Deadline passed but not live/completed */}
       {deadlinePassed && !isLive && !isCompleted && (
         <div style={{ padding: '.6rem 1rem', background: 'rgba(239,154,154,.06)', border: '1px solid rgba(239,154,154,.25)', borderRadius: '8px', textAlign: 'center', fontSize: '.72rem', fontWeight: '700', color: '#EF9A9A', letterSpacing: '1px' }}>
           {prediction
@@ -337,6 +393,35 @@ function PredictionCard({ match, prediction, onSave }) {
               </button>
             ))}
           </div>
+
+          {/* Bonus questions */}
+          {questions.length > 0 && (
+            <div style={{ marginBottom: '.8rem' }}>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.5rem' }}>📝 Bonus Questions</div>
+              {questions.map(q => (
+                <div key={q.id} style={{ marginBottom: '.7rem' }}>
+                  <div style={{ fontSize: '.75rem', fontWeight: '700', color: '#E8F5E9', marginBottom: '.35rem' }}>
+                    {q.question} <span style={{ color: '#FFD700', fontSize: '.62rem' }}>+{q.points} pts</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                    {q.options.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => setLocalAnswers(prev => ({ ...prev, [q.id]: prev[q.id] === opt ? null : opt }))}
+                        style={{
+                          padding: '.35rem .7rem', borderRadius: '6px',
+                          border: localAnswers[q.id] === opt ? '2px solid #FFD700' : '1px solid #1E2E20',
+                          background: localAnswers[q.id] === opt ? 'rgba(255,215,0,.12)' : '#111A13',
+                          color: localAnswers[q.id] === opt ? '#FFD700' : '#5A7A5E',
+                          fontSize: '.72rem', fontWeight: '700', cursor: 'pointer', transition: 'all .15s'
+                        }}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {saveError && (
             <div style={{ padding: '.5rem .7rem', borderRadius: '6px', background: 'rgba(239,154,154,.08)', border: '1px solid rgba(239,154,154,.3)', color: '#EF9A9A', fontSize: '.72rem', fontWeight: '600', textAlign: 'center', marginBottom: '.5rem' }}>

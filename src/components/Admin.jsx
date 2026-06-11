@@ -7,28 +7,47 @@ export default function Admin() {
   const [tab, setTab] = useState('Matches')
   const [teams, setTeams] = useState([])
   const [matches, setMatches] = useState([])
+  const [questions, setQuestions] = useState({}) // { match_id: [question, ...] }
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '', prediction_deadline: '' })
   const [resultForms, setResultForms] = useState({})
   const [saving, setSaving] = useState({})
+  const [expandedQMatch, setExpandedQMatch] = useState(null)
+  const [qForm, setQForm] = useState({ question: '', options: ['', '', '', ''], points: 2 })
+  const [questionCorrects, setQuestionCorrects] = useState({}) // { question_id: selectedOption }
 
   useEffect(() => { fetchAll() }, [])
 
   const fetchAll = async () => {
     setLoading(true)
-    const [{ data: t }, { data: m }] = await Promise.all([
+    const [{ data: t }, { data: m }, { data: q }] = await Promise.all([
       supabase.from('teams').select('*').order('name'),
-      supabase.from('matches').select('*').order('matchday', { ascending: false })
+      supabase.from('matches').select('*').order('matchday', { ascending: false }),
+      supabase.from('match_questions').select('*').order('created_at')
     ])
     setTeams(t || [])
     setMatches(m || [])
+    const qMap = {}
+    for (const question of q || []) {
+      if (!qMap[question.match_id]) qMap[question.match_id] = []
+      qMap[question.match_id].push(question)
+    }
+    setQuestions(qMap)
     setLoading(false)
   }
 
   const showToast = (msg, bad = false) => {
     setToast({ msg, bad })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const toggleQPanel = (matchId) => {
+    setExpandedQMatch(prev => {
+      if (prev === matchId) return null
+      setQForm({ question: '', options: ['', '', '', ''], points: 2 })
+      return matchId
+    })
   }
 
   const addMatch = async () => {
@@ -48,6 +67,29 @@ export default function Admin() {
     if (!confirm('Delete this match? All predictions for it will also be deleted.')) return
     await supabase.from('matches').delete().eq('id', id)
     showToast('Match deleted')
+    fetchAll()
+  }
+
+  const addQuestion = async (matchId) => {
+    const validOptions = qForm.options.map(o => o.trim()).filter(Boolean)
+    if (!qForm.question.trim()) return showToast('⚠ Enter a question', true)
+    if (validOptions.length < 2) return showToast('⚠ Add at least 2 options', true)
+    const { error } = await supabase.from('match_questions').insert({
+      match_id: matchId,
+      question: qForm.question.trim(),
+      options: validOptions,
+      points: qForm.points
+    })
+    if (error) return showToast('❌ Failed to add question', true)
+    showToast('✅ Question added!')
+    setQForm({ question: '', options: ['', '', '', ''], points: 2 })
+    fetchAll()
+  }
+
+  const deleteQuestion = async (id) => {
+    if (!confirm('Delete this question? All user answers will also be deleted.')) return
+    await supabase.from('match_questions').delete().eq('id', id)
+    showToast('Question deleted')
     fetchAll()
   }
 
@@ -80,13 +122,11 @@ export default function Admin() {
 
     for (const pred of preds || []) {
       let pts = 0
-      // Outcome / score points
       if (pred.home_score_pred === homeScore && pred.away_score_pred === awayScore) {
         pts += 5
       } else if (pred.predicted_outcome === outcome) {
         pts += 3
       }
-      // Goals range bonus (+2 pts, stacks independently)
       if (pred.goals_range_pred) {
         const goalCorrect =
           (pred.goals_range_pred === 'UNDER_1.5' && totalGoals < 2) ||
@@ -99,6 +139,21 @@ export default function Admin() {
       await supabase.from('predictions').update({ points_earned: pts }).eq('id', pred.id)
     }
 
+    // Score bonus questions
+    const matchQuestions = questions[match.id] || []
+    for (const q of matchQuestions) {
+      const correctOpt = questionCorrects[q.id]
+      if (!correctOpt) continue
+      await supabase.from('match_questions').update({ correct_option: correctOpt }).eq('id', q.id)
+      const { data: qAnswers } = await supabase.from('question_answers').select('*').eq('question_id', q.id)
+      for (const ans of qAnswers || []) {
+        if (ans.selected_option === correctOpt) {
+          await supabase.from('question_answers').update({ points_earned: q.points }).eq('id', ans.id)
+          managerPointsMap[ans.manager_id] = (managerPointsMap[ans.manager_id] || 0) + q.points
+        }
+      }
+    }
+
     for (const [managerId, pts] of Object.entries(managerPointsMap)) {
       if (pts > 0) {
         const { data: mgr } = await supabase.from('managers').select('total_points').eq('id', managerId).single()
@@ -108,6 +163,11 @@ export default function Admin() {
 
     setSaving(prev => ({ ...prev, [match.id]: false }))
     setResultForms(prev => { const n = { ...prev }; delete n[match.id]; return n })
+    setQuestionCorrects(prev => {
+      const n = { ...prev }
+      for (const q of matchQuestions) delete n[q.id]
+      return n
+    })
     const predCount = (preds || []).length
     showToast(`✅ ${homeScore}—${awayScore} confirmed. ${predCount} prediction${predCount !== 1 ? 's' : ''} processed!`)
     fetchAll()
@@ -116,9 +176,7 @@ export default function Admin() {
   if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
   const now = new Date()
-  // Matches whose kickoff has passed but result not yet entered
   const pendingMatches = matches.filter(m => m.status !== 'completed' && m.kickoff_time && now >= new Date(m.kickoff_time))
-  // Matches not yet kicked off (still upcoming)
   const upcomingMatches = matches.filter(m => m.status !== 'completed' && (!m.kickoff_time || now < new Date(m.kickoff_time)))
   const completedMatches = matches.filter(m => m.status === 'completed')
 
@@ -165,25 +223,94 @@ export default function Admin() {
           <div style={{ ...styles.card, marginTop: '1rem' }}>
             <div style={styles.cardTitle}>All Matches</div>
             {matches.map(m => (
-              <div key={m.id} style={styles.row}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
-                  <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>
-                    GW{m.matchday} · {m.venue || 'TBD'}
-                    {m.status === 'completed' && ` · ${m.home_score}—${m.away_score}`}
-                  </div>
-                  {m.prediction_deadline && m.status === 'scheduled' && (
-                    <div style={{ fontSize: '.65rem', color: new Date() > new Date(m.prediction_deadline) ? '#EF9A9A' : '#FFD700', marginTop: '.2rem' }}>
-                      🔒 Deadline: {new Date(m.prediction_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      {new Date() > new Date(m.prediction_deadline) ? ' · Closed' : ''}
+              <div key={m.id}>
+                <div style={styles.row}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
+                    <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>
+                      GW{m.matchday} · {m.venue || 'TBD'}
+                      {m.status === 'completed' && ` · ${m.home_score}—${m.away_score}`}
                     </div>
+                    {m.prediction_deadline && m.status === 'scheduled' && (
+                      <div style={{ fontSize: '.65rem', color: new Date() > new Date(m.prediction_deadline) ? '#EF9A9A' : '#FFD700', marginTop: '.2rem' }}>
+                        🔒 Deadline: {new Date(m.prediction_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {new Date() > new Date(m.prediction_deadline) ? ' · Closed' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ ...styles.badge, background: m.status === 'completed' ? 'rgba(90,122,94,.1)' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'rgba(0,230,118,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'completed' ? '#5A7A5E' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? '#00E676' : '#64B5F6' }}>
+                    {m.status === 'completed' ? 'completed' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'live' : 'scheduled'}
+                  </span>
+                  <button
+                    onClick={() => toggleQPanel(m.id)}
+                    style={{ ...styles.btn, background: expandedQMatch === m.id ? 'rgba(255,215,0,.2)' : 'rgba(255,215,0,.08)', border: '1px solid rgba(255,215,0,.4)', color: '#FFD700', padding: '.3rem .6rem', fontSize: '.72rem' }}
+                  >
+                    📝 {(questions[m.id] || []).length}
+                  </button>
+                  {m.status !== 'completed' && (
+                    <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .6rem', fontSize: '.72rem' }} onClick={() => deleteMatch(m.id)}>✕</button>
                   )}
                 </div>
-                <span style={{ ...styles.badge, background: m.status === 'completed' ? 'rgba(90,122,94,.1)' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'rgba(0,230,118,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'completed' ? '#5A7A5E' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? '#00E676' : '#64B5F6' }}>
-                  {m.status === 'completed' ? 'completed' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'live' : 'scheduled'}
-                </span>
-                {m.status !== 'completed' && (
-                  <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .6rem', fontSize: '.72rem' }} onClick={() => deleteMatch(m.id)}>✕</button>
+
+                {expandedQMatch === m.id && (
+                  <div style={{ background: 'rgba(255,215,0,.03)', border: '1px solid rgba(255,215,0,.15)', borderRadius: '10px', padding: '1rem', marginBottom: '.7rem' }}>
+                    <div style={{ fontSize: '.7rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.8rem' }}>
+                      📝 Bonus Questions
+                    </div>
+
+                    {(questions[m.id] || []).length === 0 && (
+                      <div style={{ fontSize: '.78rem', color: '#5A7A5E', marginBottom: '.8rem' }}>No questions yet for this match.</div>
+                    )}
+
+                    {(questions[m.id] || []).map(q => (
+                      <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '.6rem 0', borderBottom: '1px solid rgba(255,215,0,.1)', gap: '.5rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '.82rem', fontWeight: '700', color: '#E8F5E9' }}>{q.question}</div>
+                          <div style={{ fontSize: '.68rem', color: '#5A7A5E', marginTop: '.2rem' }}>
+                            {q.options.join(' · ')} · <span style={{ color: '#FFD700' }}>+{q.points} pts</span>
+                          </div>
+                          {q.correct_option && (
+                            <div style={{ fontSize: '.65rem', color: '#00E676', marginTop: '.15rem' }}>✓ Correct: {q.correct_option}</div>
+                          )}
+                        </div>
+                        {m.status !== 'completed' && (
+                          <button onClick={() => deleteQuestion(q.id)} style={{ background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', borderRadius: '6px', padding: '.25rem .5rem', fontSize: '.7rem', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                        )}
+                      </div>
+                    ))}
+
+                    {m.status !== 'completed' && (
+                      <div style={{ marginTop: '.9rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                        <input
+                          style={styles.input}
+                          placeholder="Question (e.g. Who will score first?)"
+                          value={qForm.question}
+                          onChange={e => setQForm({ ...qForm, question: e.target.value })}
+                        />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
+                          {[0, 1, 2, 3].map(i => (
+                            <input
+                              key={i}
+                              style={styles.input}
+                              placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                              value={qForm.options[i]}
+                              onChange={e => {
+                                const opts = [...qForm.options]
+                                opts[i] = e.target.value
+                                setQForm({ ...qForm, options: opts })
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: '.5rem' }}>
+                          <select style={{ ...styles.input, flex: '0 0 auto', width: 'auto' }} value={qForm.points} onChange={e => setQForm({ ...qForm, points: parseInt(e.target.value) })}>
+                            {[1, 2, 3, 5].map(p => <option key={p} value={p}>+{p} pts</option>)}
+                          </select>
+                          <button style={{ ...styles.btn, flex: 1 }} onClick={() => addQuestion(m.id)}>Add Question</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -202,37 +329,72 @@ export default function Admin() {
               </p>
               {pendingMatches.map(m => {
                 const form = resultForms[m.id] || {}
+                const matchQuestions = questions[m.id] || []
                 return (
-                  <div key={m.id} style={{ display: 'flex', gap: '.8rem', paddingBottom: '1.2rem', marginBottom: '1.2rem', borderBottom: '1px solid #1E2E20', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: 1, minWidth: '150px' }}>
-                      <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
-                      <div style={{ fontSize: '.7rem', color: '#5A7A5E', marginBottom: '.3rem' }}>GW{m.matchday}</div>
-                      <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', padding: '.2rem .5rem', borderRadius: '100px', background: 'rgba(0,230,118,.1)', color: '#00E676', textTransform: 'uppercase' }}>
-                        🔴 In Progress
-                      </span>
+                  <div key={m.id} style={{ paddingBottom: '1.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #1E2E20' }}>
+                    <div style={{ display: 'flex', gap: '.8rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ flex: 1, minWidth: '150px' }}>
+                        <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
+                        <div style={{ fontSize: '.7rem', color: '#5A7A5E', marginBottom: '.3rem' }}>GW{m.matchday}</div>
+                        <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', padding: '.2rem .5rem', borderRadius: '100px', background: 'rgba(0,230,118,.1)', color: '#00E676', textTransform: 'uppercase' }}>
+                          🔴 In Progress
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
+                        <input
+                          type="number" min="0" max="20" placeholder="0"
+                          value={form.home || ''}
+                          onChange={e => setResultForms(prev => ({ ...prev, [m.id]: { ...prev[m.id], home: e.target.value } }))}
+                          style={{ width: '54px', padding: '.5rem', borderRadius: '6px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '1rem', fontWeight: '700', textAlign: 'center', outline: 'none' }}
+                        />
+                        <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', color: '#5A7A5E' }}>—</span>
+                        <input
+                          type="number" min="0" max="20" placeholder="0"
+                          value={form.away || ''}
+                          onChange={e => setResultForms(prev => ({ ...prev, [m.id]: { ...prev[m.id], away: e.target.value } }))}
+                          style={{ width: '54px', padding: '.5rem', borderRadius: '6px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '1rem', fontWeight: '700', textAlign: 'center', outline: 'none' }}
+                        />
+                        <button
+                          style={{ ...styles.btn, padding: '.5rem 1rem', fontSize: '.78rem' }}
+                          onClick={() => enterResult(m)}
+                          disabled={saving[m.id]}
+                        >
+                          {saving[m.id] ? '⏳' : 'Confirm'}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
-                      <input
-                        type="number" min="0" max="20" placeholder="0"
-                        value={form.home || ''}
-                        onChange={e => setResultForms(prev => ({ ...prev, [m.id]: { ...prev[m.id], home: e.target.value } }))}
-                        style={{ width: '54px', padding: '.5rem', borderRadius: '6px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '1rem', fontWeight: '700', textAlign: 'center', outline: 'none' }}
-                      />
-                      <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.2rem', color: '#5A7A5E' }}>—</span>
-                      <input
-                        type="number" min="0" max="20" placeholder="0"
-                        value={form.away || ''}
-                        onChange={e => setResultForms(prev => ({ ...prev, [m.id]: { ...prev[m.id], away: e.target.value } }))}
-                        style={{ width: '54px', padding: '.5rem', borderRadius: '6px', border: '1px solid #1E2E20', background: '#080C0A', color: '#E8F5E9', fontSize: '1rem', fontWeight: '700', textAlign: 'center', outline: 'none' }}
-                      />
-                      <button
-                        style={{ ...styles.btn, padding: '.5rem 1rem', fontSize: '.78rem' }}
-                        onClick={() => enterResult(m)}
-                        disabled={saving[m.id]}
-                      >
-                        {saving[m.id] ? '⏳' : 'Confirm'}
-                      </button>
-                    </div>
+
+                    {matchQuestions.length > 0 && (
+                      <div style={{ marginTop: '.9rem', background: 'rgba(255,215,0,.03)', border: '1px solid rgba(255,215,0,.15)', borderRadius: '8px', padding: '.8rem' }}>
+                        <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase', color: '#FFD700', marginBottom: '.7rem' }}>
+                          📝 Mark Correct Answers
+                        </div>
+                        {matchQuestions.map(q => (
+                          <div key={q.id} style={{ marginBottom: '.8rem' }}>
+                            <div style={{ fontSize: '.8rem', fontWeight: '700', color: '#E8F5E9', marginBottom: '.4rem' }}>
+                              {q.question} <span style={{ color: '#FFD700', fontSize: '.65rem' }}>+{q.points} pts</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
+                              {q.options.map(opt => (
+                                <button
+                                  key={opt}
+                                  onClick={() => setQuestionCorrects(prev => ({ ...prev, [q.id]: prev[q.id] === opt ? null : opt }))}
+                                  style={{
+                                    padding: '.35rem .75rem', borderRadius: '6px',
+                                    border: questionCorrects[q.id] === opt ? '2px solid #FFD700' : '1px solid #1E2E20',
+                                    background: questionCorrects[q.id] === opt ? 'rgba(255,215,0,.15)' : '#111A13',
+                                    color: questionCorrects[q.id] === opt ? '#FFD700' : '#5A7A5E',
+                                    fontSize: '.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all .15s'
+                                  }}
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -268,6 +430,11 @@ export default function Admin() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
                     <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>GW{m.matchday} · {m.venue || 'TBD'}</div>
+                    {(questions[m.id] || []).length > 0 && (
+                      <div style={{ fontSize: '.65rem', color: '#FFD700', marginTop: '.2rem' }}>
+                        📝 {(questions[m.id] || []).length} bonus question{(questions[m.id] || []).length !== 1 ? 's' : ''}
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.6rem', color: '#E8F5E9', minWidth: '64px', textAlign: 'center' }}>
                     {m.home_score}—{m.away_score}
