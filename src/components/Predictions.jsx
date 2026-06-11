@@ -38,12 +38,18 @@ export default function Predictions({ manager }) {
       home_score_pred: homeScore !== '' && homeScore !== null ? parseInt(homeScore) : null,
       away_score_pred: awayScore !== '' && awayScore !== null ? parseInt(awayScore) : null
     }
+    let error
     if (existing) {
-      await supabase.from('predictions').update(payload).eq('id', existing.id)
+      ;({ error } = await supabase.from('predictions').update(payload).eq('id', existing.id))
     } else {
-      await supabase.from('predictions').insert(payload)
+      ;({ error } = await supabase.from('predictions').insert(payload))
     }
-    fetchData()
+    if (error) {
+      console.error('Prediction save error:', error.message)
+      return false
+    }
+    await fetchData()
+    return true
   }
 
   // Derive display status from time — admin never needs to press "Go Live"
@@ -133,6 +139,7 @@ function PredictionCard({ match, prediction, onSave }) {
   const [awayScore, setAwayScore] = useState(prediction?.away_score_pred != null ? String(prediction.away_score_pred) : '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   useEffect(() => {
     setOutcome(prediction?.predicted_outcome || null)
@@ -143,10 +150,15 @@ function PredictionCard({ match, prediction, onSave }) {
   const handleSave = async () => {
     if (!outcome) return
     setSaving(true)
-    await onSave(match.id, outcome, homeScore, awayScore)
+    setSaveError(null)
+    const ok = await onSave(match.id, outcome, homeScore, awayScore)
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    if (ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } else {
+      setSaveError('Failed to save — check connection or login and try again')
+    }
   }
 
   const matchOutcome = match.result_outcome
@@ -271,6 +283,11 @@ function PredictionCard({ match, prediction, onSave }) {
             />
           </div>
 
+          {saveError && (
+            <div style={{ padding: '.5rem .7rem', borderRadius: '6px', background: 'rgba(239,154,154,.08)', border: '1px solid rgba(239,154,154,.3)', color: '#EF9A9A', fontSize: '.72rem', fontWeight: '600', textAlign: 'center', marginBottom: '.5rem' }}>
+              ⚠ {saveError}
+            </div>
+          )}
           <button onClick={handleSave} disabled={!outcome || saving} style={{
             width: '100%', padding: '.7rem', borderRadius: '8px',
             background: saved ? 'rgba(0,230,118,.15)' : outcome ? '#00E676' : '#1E2E20',

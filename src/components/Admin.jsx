@@ -33,7 +33,11 @@ export default function Admin() {
 
   const addMatch = async () => {
     if (!mForm.home_team || !mForm.away_team) return showToast('⚠ Fill all fields', true)
-    const { error } = await supabase.from('matches').insert(mForm)
+    const { error } = await supabase.from('matches').insert({
+      ...mForm,
+      kickoff_time: mForm.kickoff_time || null,
+      prediction_deadline: mForm.prediction_deadline || null
+    })
     if (error) return showToast('❌ Failed to add match', true)
     showToast('✅ Match created!')
     setMForm({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '', prediction_deadline: '' })
