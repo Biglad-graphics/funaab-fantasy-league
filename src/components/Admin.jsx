@@ -9,7 +9,7 @@ export default function Admin() {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
-  const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
+  const [mForm, setMForm] = useState({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '', prediction_deadline: '' })
   const [resultForms, setResultForms] = useState({})
   const [saving, setSaving] = useState({})
 
@@ -36,7 +36,7 @@ export default function Admin() {
     const { error } = await supabase.from('matches').insert(mForm)
     if (error) return showToast('❌ Failed to add match', true)
     showToast('✅ Match created!')
-    setMForm({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '' })
+    setMForm({ home_team: '', away_team: '', matchday: 1, venue: '', kickoff_time: '', prediction_deadline: '' })
     fetchAll()
   }
 
@@ -133,6 +133,12 @@ export default function Admin() {
               <input style={styles.input} type="number" placeholder="Matchday" value={mForm.matchday} onChange={e => setMForm({ ...mForm, matchday: parseInt(e.target.value) })} />
               <input style={styles.input} placeholder="Venue" value={mForm.venue} onChange={e => setMForm({ ...mForm, venue: e.target.value })} />
               <input style={styles.input} type="datetime-local" value={mForm.kickoff_time} onChange={e => setMForm({ ...mForm, kickoff_time: e.target.value })} />
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', display: 'block', marginBottom: '.4rem' }}>
+                  🔒 Prediction Deadline (when submissions close)
+                </label>
+                <input style={styles.input} type="datetime-local" value={mForm.prediction_deadline} onChange={e => setMForm({ ...mForm, prediction_deadline: e.target.value })} />
+              </div>
               <button style={{ ...styles.btn, gridColumn: 'span 2' }} onClick={addMatch}>Create Match</button>
             </div>
           </div>
@@ -147,6 +153,12 @@ export default function Admin() {
                     GW{m.matchday} · {m.venue || 'TBD'}
                     {m.status === 'completed' && ` · ${m.home_score}—${m.away_score}`}
                   </div>
+                  {m.prediction_deadline && m.status === 'scheduled' && (
+                    <div style={{ fontSize: '.65rem', color: new Date() > new Date(m.prediction_deadline) ? '#EF9A9A' : '#FFD700', marginTop: '.2rem' }}>
+                      🔒 Deadline: {new Date(m.prediction_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {new Date() > new Date(m.prediction_deadline) ? ' · Closed' : ''}
+                    </div>
+                  )}
                 </div>
                 <span style={{ ...styles.badge, background: m.status === 'live' ? 'rgba(0,230,118,.1)' : m.status === 'completed' ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#5A7A5E' : '#64B5F6' }}>{m.status}</span>
                 {m.status === 'scheduled' && (

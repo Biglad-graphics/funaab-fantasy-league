@@ -113,7 +113,10 @@ export default function Predictions({ manager }) {
 function PredictionCard({ match, prediction, onSave }) {
   const isCompleted = match.status === 'completed'
   const isLive = match.status === 'live'
-  const isLocked = isCompleted || isLive
+  const deadlinePassed = match.prediction_deadline
+    ? new Date() > new Date(match.prediction_deadline)
+    : false
+  const isLocked = isCompleted || isLive || deadlinePassed
 
   const [outcome, setOutcome] = useState(prediction?.predicted_outcome || null)
   const [homeScore, setHomeScore] = useState(prediction?.home_score_pred != null ? String(prediction.home_score_pred) : '')
@@ -179,10 +182,17 @@ function PredictionCard({ match, prediction, onSave }) {
       </div>
 
       {/* Venue & time */}
-      <div style={{ display: 'flex', gap: '1rem', fontSize: '.7rem', color: '#5A7A5E', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '1rem', fontSize: '.7rem', color: '#5A7A5E', marginBottom: match.prediction_deadline && !isCompleted ? '.5rem' : '1rem', flexWrap: 'wrap' }}>
         <span>📍 {match.venue || 'TBD'}</span>
         {match.kickoff_time && <span>🕐 {new Date(match.kickoff_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
       </div>
+
+      {/* Prediction deadline */}
+      {match.prediction_deadline && !isCompleted && !isLive && (
+        <div style={{ fontSize: '.67rem', fontWeight: '700', marginBottom: '1rem', padding: '.3rem .7rem', borderRadius: '6px', display: 'inline-block', background: deadlinePassed ? 'rgba(239,154,154,.08)' : 'rgba(255,215,0,.08)', border: `1px solid ${deadlinePassed ? 'rgba(239,154,154,.3)' : 'rgba(255,215,0,.3)'}`, color: deadlinePassed ? '#EF9A9A' : '#FFD700' }}>
+          🔒 {deadlinePassed ? 'Predictions closed' : `Closes ${new Date(match.prediction_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+        </div>
+      )}
 
       {/* Result badge (completed) */}
       {predResultBadge && (
@@ -198,6 +208,16 @@ function PredictionCard({ match, prediction, onSave }) {
       {isCompleted && !prediction && (
         <div style={{ padding: '.6rem', borderRadius: '8px', marginBottom: '.8rem', background: 'rgba(90,122,94,.05)', border: '1px solid #1E2E20', textAlign: 'center', fontSize: '.72rem', color: '#5A7A5E' }}>
           No prediction submitted
+        </div>
+      )}
+
+      {/* Deadline passed but match not live yet */}
+      {deadlinePassed && !isLive && !isCompleted && (
+        <div style={{ padding: '.6rem 1rem', background: 'rgba(239,154,154,.06)', border: '1px solid rgba(239,154,154,.25)', borderRadius: '8px', textAlign: 'center', fontSize: '.72rem', fontWeight: '700', color: '#EF9A9A', letterSpacing: '1px' }}>
+          {prediction
+            ? `Your pick: ${prediction.predicted_outcome === 'HOME' ? homeShort + ' Win' : prediction.predicted_outcome === 'AWAY' ? awayShort + ' Win' : 'Draw'}${prediction.home_score_pred != null ? ` (${prediction.home_score_pred}—${prediction.away_score_pred})` : ''} · Predictions closed 🔒`
+            : 'Predictions closed — no prediction submitted'
+          }
         </div>
       )}
 
