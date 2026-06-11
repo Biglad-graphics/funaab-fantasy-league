@@ -46,10 +46,16 @@ export default function Home({ manager, navigate }) {
 
   if (loading) return <div style={{ color: '#5A7A5E', padding: '2rem' }}>Loading...</div>
 
-  const liveMatch = matches.find(m => m.status === 'live')
-  const nextMatch = matches.find(m => m.status === 'scheduled')
-  const completedMatches = matches.filter(m => m.status === 'completed')
-  const upcomingMatches = matches.filter(m => m.status === 'scheduled')
+  const now = new Date()
+  const effectiveStatus = (m) => {
+    if (m.status === 'completed') return 'completed'
+    if (m.kickoff_time && now >= new Date(m.kickoff_time)) return 'live'
+    return 'scheduled'
+  }
+  const liveMatch = matches.find(m => effectiveStatus(m) === 'live')
+  const nextMatch = matches.find(m => effectiveStatus(m) === 'scheduled')
+  const completedMatches = matches.filter(m => effectiveStatus(m) === 'completed')
+  const upcomingMatches = matches.filter(m => effectiveStatus(m) === 'scheduled')
   const totalManagers = allManagers.length
   const correctPredictions = predictions.filter(p => (p.points_earned ?? 0) > 0).length
 

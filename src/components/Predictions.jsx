@@ -46,10 +46,19 @@ export default function Predictions({ manager }) {
     fetchData()
   }
 
-  const filtered = filter === 'all' ? matches : matches.filter(m => m.status === filter)
-  const live = filtered.filter(m => m.status === 'live')
-  const upcoming = filtered.filter(m => m.status === 'scheduled')
-  const completed = filtered.filter(m => m.status === 'completed')
+  // Derive display status from time — admin never needs to press "Go Live"
+  const effectiveStatus = (m) => {
+    if (m.status === 'completed') return 'completed'
+    if (m.kickoff_time && new Date() >= new Date(m.kickoff_time)) return 'live'
+    return 'scheduled'
+  }
+
+  const filtered = filter === 'all'
+    ? matches
+    : matches.filter(m => effectiveStatus(m) === filter)
+  const live = filtered.filter(m => effectiveStatus(m) === 'live')
+  const upcoming = filtered.filter(m => effectiveStatus(m) === 'scheduled')
+  const completed = filtered.filter(m => effectiveStatus(m) === 'completed')
 
   if (loading) return <div style={{ color: '#5A7A5E', padding: '2rem' }}>Loading...</div>
 
@@ -111,11 +120,12 @@ export default function Predictions({ manager }) {
 }
 
 function PredictionCard({ match, prediction, onSave }) {
+  const now = new Date()
   const isCompleted = match.status === 'completed'
-  const isLive = match.status === 'live'
+  const isLive = !isCompleted && match.kickoff_time && now >= new Date(match.kickoff_time)
   const deadlinePassed = match.prediction_deadline
-    ? new Date() > new Date(match.prediction_deadline)
-    : false
+    ? now > new Date(match.prediction_deadline)
+    : !!isLive  // if no deadline set, lock at kickoff
   const isLocked = isCompleted || isLive || deadlinePassed
 
   const [outcome, setOutcome] = useState(prediction?.predicted_outcome || null)

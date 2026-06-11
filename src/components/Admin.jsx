@@ -40,12 +40,6 @@ export default function Admin() {
     fetchAll()
   }
 
-  const goLive = async (match) => {
-    await supabase.from('matches').update({ status: 'live' }).eq('id', match.id)
-    showToast(`🔴 ${match.home_team} vs ${match.away_team} is LIVE`)
-    fetchAll()
-  }
-
   const deleteMatch = async (id) => {
     if (!confirm('Delete this match? All predictions for it will also be deleted.')) return
     await supabase.from('matches').delete().eq('id', id)
@@ -100,7 +94,11 @@ export default function Admin() {
 
   if (loading) return <div style={{ padding: '2rem', color: '#5A7A5E' }}>Loading...</div>
 
-  const pendingMatches = matches.filter(m => m.status === 'live' || m.status === 'scheduled')
+  const now = new Date()
+  // Matches whose kickoff has passed but result not yet entered
+  const pendingMatches = matches.filter(m => m.status !== 'completed' && m.kickoff_time && now >= new Date(m.kickoff_time))
+  // Matches not yet kicked off (still upcoming)
+  const upcomingMatches = matches.filter(m => m.status !== 'completed' && (!m.kickoff_time || now < new Date(m.kickoff_time)))
   const completedMatches = matches.filter(m => m.status === 'completed')
 
   return (
@@ -160,10 +158,9 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
-                <span style={{ ...styles.badge, background: m.status === 'live' ? 'rgba(0,230,118,.1)' : m.status === 'completed' ? 'rgba(90,122,94,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : m.status === 'completed' ? '#5A7A5E' : '#64B5F6' }}>{m.status}</span>
-                {m.status === 'scheduled' && (
-                  <button style={{ ...styles.btn, padding: '.35rem .9rem', fontSize: '.72rem' }} onClick={() => goLive(m)}>Go Live</button>
-                )}
+                <span style={{ ...styles.badge, background: m.status === 'completed' ? 'rgba(90,122,94,.1)' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'rgba(0,230,118,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'completed' ? '#5A7A5E' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? '#00E676' : '#64B5F6' }}>
+                  {m.status === 'completed' ? 'completed' : m.kickoff_time && new Date() >= new Date(m.kickoff_time) ? 'live' : 'scheduled'}
+                </span>
                 {m.status !== 'completed' && (
                   <button style={{ ...styles.btn, background: 'transparent', border: '1px solid #EF9A9A', color: '#EF9A9A', padding: '.3rem .6rem', fontSize: '.72rem' }} onClick={() => deleteMatch(m.id)}>✕</button>
                 )}
@@ -178,7 +175,7 @@ export default function Admin() {
         <div>
           {pendingMatches.length > 0 && (
             <div style={{ ...styles.card, marginBottom: '1rem' }}>
-              <div style={styles.cardTitle}>Enter Match Results</div>
+              <div style={styles.cardTitle}>🔴 In Progress — Enter Results</div>
               <p style={{ fontSize: '.78rem', color: '#5A7A5E', marginBottom: '1.2rem', lineHeight: 1.6 }}>
                 Enter the final score to automatically award prediction points. This cannot be undone.
               </p>
@@ -189,8 +186,8 @@ export default function Admin() {
                     <div style={{ flex: 1, minWidth: '150px' }}>
                       <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
                       <div style={{ fontSize: '.7rem', color: '#5A7A5E', marginBottom: '.3rem' }}>GW{m.matchday}</div>
-                      <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', padding: '.2rem .5rem', borderRadius: '100px', background: m.status === 'live' ? 'rgba(0,230,118,.1)' : 'rgba(100,181,246,.1)', color: m.status === 'live' ? '#00E676' : '#64B5F6', textTransform: 'uppercase' }}>
-                        {m.status === 'live' ? '🔴 Live' : '⏰ Scheduled'}
+                      <span style={{ fontSize: '.62rem', fontWeight: '800', letterSpacing: '1px', padding: '.2rem .5rem', borderRadius: '100px', background: 'rgba(0,230,118,.1)', color: '#00E676', textTransform: 'uppercase' }}>
+                        🔴 In Progress
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
@@ -221,7 +218,22 @@ export default function Admin() {
             </div>
           )}
 
-          {pendingMatches.length === 0 && completedMatches.length === 0 && (
+          {upcomingMatches.length > 0 && (
+            <div style={{ ...styles.card, marginBottom: '1rem', background: 'rgba(100,181,246,.03)', borderColor: 'rgba(100,181,246,.15)' }}>
+              <div style={styles.cardTitle}>⏰ Upcoming — not kicked off yet</div>
+              {upcomingMatches.map(m => (
+                <div key={m.id} style={styles.row}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '.88rem' }}>{m.home_team} vs {m.away_team}</div>
+                    <div style={{ fontSize: '.7rem', color: '#5A7A5E' }}>GW{m.matchday} · {m.kickoff_time ? new Date(m.kickoff_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}</div>
+                  </div>
+                  <span style={{ ...styles.badge, background: 'rgba(100,181,246,.1)', color: '#64B5F6' }}>upcoming</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pendingMatches.length === 0 && completedMatches.length === 0 && upcomingMatches.length === 0 && (
             <div style={styles.card}>
               <div style={{ padding: '1.5rem', color: '#5A7A5E', textAlign: 'center' }}>No matches to manage yet</div>
             </div>
