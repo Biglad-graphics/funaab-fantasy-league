@@ -2,16 +2,16 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Welcome({ manager, onDone }) {
-  const [teamName, setTeamName] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const handleSave = async () => {
-    if (!teamName) { setError('Enter a team name'); return }
+    if (!displayName) { setError('Enter a display name'); return }
     setLoading(true)
     const { error } = await supabase
       .from('managers')
-      .update({ team_name: teamName, is_new_user: false })
+      .update({ team_name: displayName, is_new_user: false })
       .eq('id', manager.id)
     if (error) { setError(error.message); setLoading(false); return }
     onDone()
@@ -20,18 +20,19 @@ export default function Welcome({ manager, onDone }) {
   return (
     <div style={styles.wrapper}>
       <div style={styles.card}>
-        <div style={{ fontSize: '3rem', textAlign: 'center' }}>🏆</div>
+        <div style={{ fontSize: '3rem', textAlign: 'center' }}>🎯</div>
         <h1 style={styles.title}>WELCOME TO FFL!</h1>
-        <p style={styles.sub}>Your account has been confirmed. Let's set up your fantasy team.</p>
+        <p style={styles.sub}>Your account is confirmed. Pick a display name — this is how you'll appear on the leaderboard.</p>
         {error && <div style={styles.error}>{error}</div>}
         <input
           style={styles.input}
-          placeholder="Enter your team name"
-          value={teamName}
-          onChange={e => setTeamName(e.target.value)}
+          placeholder="Your display name"
+          value={displayName}
+          onChange={e => setDisplayName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
         />
         <button style={styles.button} onClick={handleSave} disabled={loading}>
-          {loading ? 'SAVING...' : 'CREATE MY TEAM →'}
+          {loading ? 'SAVING...' : 'START PREDICTING →'}
         </button>
       </div>
     </div>

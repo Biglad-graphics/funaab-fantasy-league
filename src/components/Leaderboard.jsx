@@ -11,12 +11,10 @@ export default function Leaderboard({ manager }) {
 
   useEffect(() => {
     fetchLeaderboard()
-
     const channel = supabase
       .channel('leaderboard-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'managers' }, fetchLeaderboard)
       .subscribe()
-
     return () => supabase.removeChannel(channel)
   }, [])
 
@@ -32,24 +30,12 @@ export default function Leaderboard({ manager }) {
 
   const fetchManagerDetails = async (managerId) => {
     setDetailsLoading(true)
-    
-    // Fetch squad
-    const { data: squadData } = await supabase
-      .from('squads')
-      .select('*, players(*)')
+    const { data: predData } = await supabase
+      .from('predictions')
+      .select('*, matches(home_team, away_team, home_score, away_score, matchday, result_outcome, status)')
       .eq('manager_id', managerId)
-    
-    // Fetch matchday points
-    const { data: matchdayData } = await supabase
-      .from('matchday_points')
-      .select('*')
-      .eq('manager_id', managerId)
-      .order('matchday', { ascending: false })
-
-    setManagerDetails({
-      squad: squadData || [],
-      matchdays: matchdayData || []
-    })
+      .order('created_at', { ascending: false })
+    setManagerDetails({ predictions: predData || [] })
     setDetailsLoading(false)
   }
 
@@ -64,9 +50,17 @@ export default function Leaderboard({ manager }) {
   if (loading) return <div style={{ color: '#5A7A5E', padding: '2rem' }}>Loading...</div>
 
   if (selectedManager) {
+    const preds = managerDetails?.predictions || []
+    const completedPreds = preds.filter(p => p.matches?.status === 'completed')
+    const correctScores = completedPreds.filter(p => p.points_earned === 5).length
+    const correctOutcomes = completedPreds.filter(p => p.points_earned === 3).length
+    const accuracy = completedPreds.length > 0
+      ? Math.round(((correctScores + correctOutcomes) / completedPreds.length) * 100)
+      : 0
+
     return (
       <div>
-        <button 
+        <button
           onClick={() => setSelectedManager(null)}
           style={{ background: 'transparent', border: '1px solid #1E2E20', color: '#5A7A5E', padding: '.4rem .8rem', borderRadius: '6px', cursor: 'pointer', marginBottom: '1rem', fontSize: '.75rem', fontWeight: '700' }}
         >
@@ -78,15 +72,9 @@ export default function Leaderboard({ manager }) {
             {selectedManager.team_name || selectedManager.full_name}
           </div>
           <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', fontSize: '.85rem', color: '#5A7A5E' }}>
-            <div>
-              <span style={{ fontWeight: '700' }}>Rank:</span> #{managers.findIndex(m => m.id === selectedManager.id) + 1}
-            </div>
-            <div>
-              <span style={{ fontWeight: '700' }}>Points:</span> {selectedManager.total_points}
-            </div>
-            <div>
-              <span style={{ fontWeight: '700' }}>Department:</span> {selectedManager.department}
-            </div>
+            <div><span style={{ fontWeight: '700' }}>Rank:</span> #{managers.findIndex(m => m.id === selectedManager.id) + 1}</div>
+            <div><span style={{ fontWeight: '700' }}>Points:</span> {selectedManager.total_points}</div>
+            <div><span style={{ fontWeight: '700' }}>Department:</span> {selectedManager.department}</div>
           </div>
         </div>
 
@@ -94,70 +82,51 @@ export default function Leaderboard({ manager }) {
           <div style={{ color: '#5A7A5E', padding: '2rem', textAlign: 'center' }}>Loading details...</div>
         ) : (
           <>
-            {/* Weekly Points */}
-            {managerDetails?.matchdays.length > 0 && (
-              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem', marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>📊 Weekly Points</div>
-                {managerDetails.matchdays.map((md) => (
-                  <div key={md.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.6rem 0', borderBottom: '1px solid #1E2E20' }}>
-                    <div>
-                      <span style={{ fontWeight: '700', fontSize: '.88rem' }}>Gameweek {md.matchday}</span>
-                    </div>
-                    <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', color: md.points > 0 ? '#00E676' : '#EF9A9A' }}>
-                      {md.points > 0 ? '+' : ''}{md.points}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Squad */}
-            {managerDetails?.squad.length > 0 && (
-              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
-                <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>⚽ Current Squad ({managerDetails.squad.length})</div>
-                
-                {/* Starters */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <div style={{ fontSize: '.75rem', fontWeight: '700', color: '#00E676', marginBottom: '.5rem' }}>Starting XI</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '.5rem' }}>
-                    {managerDetails.squad.filter(s => s.is_starting).map((s) => (
-                      <div key={s.id} style={{ background: '#1E2E20', border: s.is_captain ? '2px solid #FFD700' : '1px solid #1E2E20', borderRadius: '8px', padding: '.6rem', textAlign: 'center' }}>
-                        <div style={{ fontSize: '.55rem', fontWeight: '800', color: posColor(s.players.position).color, marginBottom: '.2rem' }}>
-                          {s.players.position}
-                        </div>
-                        <div style={{ fontSize: '.7rem', fontWeight: '700', marginBottom: '.2rem' }}>
-                          {s.players.name.split(' ').pop()}
-                        </div>
-                        <div style={{ fontSize: '.6rem', color: '#5A7A5E' }}>
-                          ₦{s.players.price}M
-                        </div>
-                        {s.is_captain && <div style={{ fontSize: '.6rem', color: '#FFD700', marginTop: '.2rem' }}>⭐ CAP</div>}
-                      </div>
-                    ))}
-                  </div>
+            {/* Prediction Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: '.8rem', marginBottom: '1.5rem' }}>
+              {[
+                { label: 'Predictions', value: preds.length, color: '#E8F5E9' },
+                { label: 'Correct Scores', value: correctScores, color: '#00E676' },
+                { label: 'Correct Outcome', value: correctOutcomes, color: '#64B5F6' },
+                { label: 'Accuracy', value: completedPreds.length > 0 ? accuracy + '%' : '—', color: '#FFD700' }
+              ].map(s => (
+                <div key={s.label} style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.8rem', color: s.color, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: '#5A7A5E', marginTop: '.3rem' }}>{s.label}</div>
                 </div>
+              ))}
+            </div>
 
-                {/* Bench */}
-                {managerDetails.squad.filter(s => !s.is_starting).length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '.75rem', fontWeight: '700', color: '#64B5F6', marginBottom: '.5rem' }}>Substitutes</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '.5rem' }}>
-                      {managerDetails.squad.filter(s => !s.is_starting).map((s) => (
-                        <div key={s.id} style={{ background: '#1E2E20', border: '1px solid #1E2E20', borderRadius: '8px', padding: '.6rem', textAlign: 'center', opacity: 0.7 }}>
-                          <div style={{ fontSize: '.55rem', fontWeight: '800', color: posColor(s.players.position).color, marginBottom: '.2rem' }}>
-                            {s.players.position}
-                          </div>
-                          <div style={{ fontSize: '.7rem', fontWeight: '700', marginBottom: '.2rem' }}>
-                            {s.players.name.split(' ').pop()}
-                          </div>
-                          <div style={{ fontSize: '.6rem', color: '#5A7A5E' }}>
-                            ₦{s.players.price}M
-                          </div>
+            {/* Prediction History */}
+            {preds.length > 0 ? (
+              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '1.4rem' }}>
+                <div style={{ fontWeight: '800', fontSize: '.82rem', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', color: '#E8F5E9' }}>🎯 Prediction History</div>
+                {preds.map(p => {
+                  const m = p.matches
+                  if (!m) return null
+                  const pts = p.points_earned ?? 0
+                  const resultColor = pts === 5 ? '#00E676' : pts === 3 ? '#64B5F6' : m.status === 'completed' ? '#EF9A9A' : '#5A7A5E'
+                  return (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '.8rem', padding: '.7rem 0', borderBottom: '1px solid #1E2E20' }}>
+                      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1rem', color: '#5A7A5E', width: '34px', flexShrink: 0 }}>GW{m.matchday}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '700', fontSize: '.82rem' }}>{m.home_team} vs {m.away_team}</div>
+                        <div style={{ fontSize: '.68rem', color: '#5A7A5E', marginTop: '.15rem' }}>
+                          Pick: {p.predicted_outcome === 'HOME' ? m.home_team + ' Win' : p.predicted_outcome === 'AWAY' ? m.away_team + ' Win' : 'Draw'}
+                          {p.home_score_pred != null ? ` (${p.home_score_pred}—${p.away_score_pred})` : ''}
+                          {m.status === 'completed' ? ` · Result: ${m.home_score}—${m.away_score}` : ''}
                         </div>
-                      ))}
+                      </div>
+                      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: resultColor }}>
+                        {m.status === 'completed' ? (pts > 0 ? `+${pts}` : '0') : '—'}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>
+                No predictions submitted yet
               </div>
             )}
           </>
@@ -176,7 +145,7 @@ export default function Leaderboard({ manager }) {
           <div>
             <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E' }}>Your Position</div>
             <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: '#00E676', lineHeight: 1 }}>#{myRank}</div>
-            <div style={{ fontSize: '.8rem', color: '#5A7A5E' }}>of {managers.length} managers</div>
+            <div style={{ fontSize: '.8rem', color: '#5A7A5E' }}>of {managers.length} predictors</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E' }}>Total Points</div>
@@ -187,7 +156,7 @@ export default function Leaderboard({ manager }) {
 
       <input
         style={{ width: '100%', padding: '.75rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#111A13', color: '#E8F5E9', fontSize: '.85rem', outline: 'none', marginBottom: '1rem' }}
-        placeholder="Search managers or departments..."
+        placeholder="Search predictors or departments..."
         value={search}
         onChange={e => setSearch(e.target.value)}
       />
@@ -195,25 +164,22 @@ export default function Leaderboard({ manager }) {
       <div style={{ background: '#111A13', border: '1px solid #1E2E20', borderRadius: '12px', overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '46px 1fr 80px', padding: '.7rem 1.4rem', fontSize: '.63rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: '#5A7A5E', borderBottom: '1px solid #1E2E20' }}>
           <span>Rank</span>
-          <span>Manager</span>
+          <span>Predictor</span>
           <span style={{ textAlign: 'right' }}>Points</span>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No managers found</div>
-        ) : filtered.map((m, i) => {
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#5A7A5E' }}>No predictors found</div>
+        ) : filtered.map(m => {
           const rank = managers.findIndex(x => x.id === m.id) + 1
           const isMe = m.id === manager?.id
           return (
-            <div 
-              key={m.id} 
-              onClick={() => {
-                setSelectedManager(m)
-                fetchManagerDetails(m.id)
-              }}
+            <div
+              key={m.id}
+              onClick={() => { setSelectedManager(m); fetchManagerDetails(m.id) }}
               style={{ display: 'grid', gridTemplateColumns: '46px 1fr 80px', padding: '.85rem 1.4rem', borderBottom: '1px solid rgba(30,46,32,.5)', alignItems: 'center', background: isMe ? 'rgba(0,230,118,.04)' : 'transparent', borderLeft: isMe ? '3px solid #00E676' : '3px solid transparent', cursor: 'pointer', transition: 'all 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = isMe ? 'rgba(0,230,118,.08)' : 'rgba(100,181,246,.03)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = isMe ? 'rgba(0,230,118,.04)' : 'transparent'}
+              onMouseEnter={e => e.currentTarget.style.background = isMe ? 'rgba(0,230,118,.08)' : 'rgba(100,181,246,.03)'}
+              onMouseLeave={e => e.currentTarget.style.background = isMe ? 'rgba(0,230,118,.04)' : 'transparent'}
             >
               <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.3rem', color: rank === 1 ? '#FFD700' : rank === 2 ? '#B0BEC5' : rank === 3 ? '#C97038' : '#5A7A5E' }}>
                 {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
@@ -235,9 +201,3 @@ export default function Leaderboard({ manager }) {
     </div>
   )
 }
-
-const posColor = (pos) => 
-  pos === 'GK' ? { bg: 'rgba(255,215,0,.1)', color: '#FFD700' } : 
-  pos === 'DF' ? { bg: 'rgba(0,230,118,.1)', color: '#00E676' } : 
-  pos === 'MF' ? { bg: 'rgba(100,181,246,.1)', color: '#64B5F6' } : 
-  { bg: 'rgba(239,154,154,.1)', color: '#EF9A9A' }
