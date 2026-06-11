@@ -61,12 +61,18 @@ export default function Admin() {
     setSaving(prev => ({ ...prev, [match.id]: true }))
     const outcome = homeScore > awayScore ? 'HOME' : awayScore > homeScore ? 'AWAY' : 'DRAW'
 
-    await supabase.from('matches').update({
+    const { data: updatedMatch, error: matchUpdateError } = await supabase.from('matches').update({
       home_score: homeScore,
       away_score: awayScore,
       status: 'completed',
       result_outcome: outcome
-    }).eq('id', match.id)
+    }).eq('id', match.id).select()
+
+    if (matchUpdateError || !updatedMatch?.length) {
+      setSaving(prev => ({ ...prev, [match.id]: false }))
+      const msg = matchUpdateError?.message || 'Update blocked — check Supabase RLS policies for the matches table'
+      return showToast(`❌ ${msg}`, true)
+    }
 
     const { data: preds } = await supabase.from('predictions').select('*').eq('match_id', match.id)
     const managerPointsMap = {}
