@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { ThemeProvider } from './lib/ThemeContext'
 import Landing from './pages/Landing'
 import Auth from './pages/Auth'
 import Pending from './pages/Pending'
@@ -59,30 +60,32 @@ export default function App() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080C0A', color: '#00E676', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '3px' }}>
-      LOADING...
-    </div>
+    <ThemeProvider>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dark)', color: '#00E676', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '3px' }}>
+        LOADING...
+      </div>
+    </ThemeProvider>
   )
 
   // Not logged in
   if (!session) {
-    if (page === 'register') return <Auth setPage={setPage} />
-    if (page === 'login') return <Auth isLogin setPage={setPage} />
-    return <Landing setPage={setPage} />
+    if (page === 'register') return <ThemeProvider><Auth setPage={setPage} /></ThemeProvider>
+    if (page === 'login') return <ThemeProvider><Auth isLogin setPage={setPage} /></ThemeProvider>
+    return <ThemeProvider><Landing setPage={setPage} /></ThemeProvider>
   }
 
   // Logged in but no manager profile yet → Payment page
-  if (!manager) return <Payment session={session} onDone={() => fetchManager(session.user.id)} onLogout={logout} />
+  if (!manager) return <ThemeProvider><Payment session={session} onDone={() => fetchManager(session.user.id)} onLogout={logout} /></ThemeProvider>
 
   // Payment pending
-  if (manager.payment_status === 'pending') return <Pending manager={manager} onLogout={logout} />
+  if (manager.payment_status === 'pending') return <ThemeProvider><Pending manager={manager} onLogout={logout} /></ThemeProvider>
 
   // Payment rejected
-  if (manager.payment_status === 'rejected') return <Pending rejected manager={manager} onLogout={logout} />
+  if (manager.payment_status === 'rejected') return <ThemeProvider><Pending rejected manager={manager} onLogout={logout} /></ThemeProvider>
 
   // First time — no team set up yet
-  if (manager.is_new_user) return <Welcome manager={manager} onDone={() => fetchManager(session.user.id)} />
+  if (manager.is_new_user) return <ThemeProvider><Welcome manager={manager} onDone={() => fetchManager(session.user.id)} /></ThemeProvider>
 
   // Fully confirmed
-  return <Dashboard session={session} manager={manager} onLogout={logout} refetchManager={() => fetchManager(session.user.id)} />
+  return <ThemeProvider><Dashboard session={session} manager={manager} onLogout={logout} refetchManager={() => fetchManager(session.user.id)} /></ThemeProvider>
 }
