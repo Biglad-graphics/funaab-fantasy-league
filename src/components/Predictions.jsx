@@ -38,14 +38,18 @@ export default function Predictions({ manager }) {
       home_score_pred: homeScore !== '' && homeScore !== null ? parseInt(homeScore) : null,
       away_score_pred: awayScore !== '' && awayScore !== null ? parseInt(awayScore) : null
     }
-    let error
+    let saveError = null
     if (existing) {
-      ;({ error } = await supabase.from('predictions').update(payload).eq('id', existing.id))
+      const { data: updated, error: updateError } = await supabase
+        .from('predictions').update(payload).eq('id', existing.id).select()
+      saveError = updateError || (!updated?.length ? { message: 'Update was blocked. Make sure RLS policies are set up on the predictions table in Supabase.' } : null)
     } else {
-      ;({ error } = await supabase.from('predictions').insert(payload))
+      const { data: inserted, error: insertError } = await supabase
+        .from('predictions').insert(payload).select()
+      saveError = insertError || (!inserted?.length ? { message: 'Save was blocked. Run the predictions table RLS setup SQL in your Supabase dashboard.' } : null)
     }
-    if (error) {
-      console.error('Prediction save error:', error.message)
+    if (saveError) {
+      console.error('Prediction save error:', saveError.message)
       return false
     }
     await fetchData()
