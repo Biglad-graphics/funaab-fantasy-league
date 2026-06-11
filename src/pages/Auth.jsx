@@ -76,7 +76,7 @@ export default function Auth({ isLogin, setPage }) {
       <div style={styles.card}>
         <button style={styles.backBtn} onClick={() => setPage('landing')}>← Back</button>
         <div style={styles.logoWrap}>
-          <img src="/logo.png" alt="FFL" style={styles.logoImg} />
+          <img src="/logo.png" alt="Funaabsu League Prediction" style={styles.logoImg} />
         </div>
         <h1 style={styles.title}>FANTASY FUNAAB<br />FOOTBALL LEAGUE</h1>
 
