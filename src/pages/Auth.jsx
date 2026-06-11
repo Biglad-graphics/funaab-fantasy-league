@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useTheme } from '../lib/ThemeContext'
 
 export default function Auth({ isLogin, setPage }) {
+  const { c } = useTheme()
   const [mode, setMode] = useState(isLogin ? 'login' : 'register')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -12,6 +14,26 @@ export default function Auth({ isLogin, setPage }) {
     email: '',
     password: ''
   })
+
+  const styles = {
+    wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
+    bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
+    overlay: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88))', zIndex: 1 },
+    card: { position: 'relative', zIndex: 2, background: c.surface, border: `1px solid ${c.border}`, padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '.85rem', margin: '1rem', backdropFilter: 'blur(20px)', maxHeight: '90vh', overflowY: 'auto' },
+    backBtn: { background: 'transparent', border: 'none', color: c.muted, fontSize: '.8rem', fontWeight: '700', cursor: 'pointer', textAlign: 'left', padding: 0, letterSpacing: '1px' },
+    logoWrap: { display: 'flex', justifyContent: 'center' },
+    logoImg: { width: '60px', height: '60px', objectFit: 'contain' },
+    title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.7rem', textAlign: 'center', color: c.text, lineHeight: 1.05, letterSpacing: '2px' },
+    tabs: { display: 'flex', background: c.bg, borderRadius: '8px', padding: '.25rem', gap: '.25rem' },
+    tab: { flex: 1, padding: '.6rem', borderRadius: '6px', border: 'none', background: 'transparent', color: c.muted, fontWeight: '800', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' },
+    tabActive: { background: c.surface, color: c.green, border: `1px solid ${c.border}` },
+    input: { padding: '.8rem 1rem', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.surface, color: c.text, fontSize: '.88rem', outline: 'none', width: '100%' },
+    button: { padding: '.9rem', borderRadius: '8px', background: c.green, color: c.bg, fontWeight: '800', fontSize: '.88rem', border: 'none', cursor: 'pointer', letterSpacing: '2px' },
+    forgotBtn: { background: 'transparent', border: 'none', color: c.muted, fontSize: '.8rem', fontWeight: '700', cursor: 'pointer', textAlign: 'center', letterSpacing: '1px' },
+    error: { color: c.red, fontSize: '.78rem', textAlign: 'center', background: `rgba(${c.redRgb},0.08)`, border: `1px solid rgba(${c.redRgb},0.2)`, padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
+    successBox: { color: c.green, fontSize: '.78rem', textAlign: 'center', background: `rgba(${c.greenRgb},0.08)`, border: `1px solid rgba(${c.greenRgb},0.2)`, padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
+    footer: { borderTop: `1px solid ${c.border}`, paddingTop: '.85rem', textAlign: 'center', fontSize: '.6rem', fontWeight: '700', letterSpacing: '2px', color: c.muted, textTransform: 'uppercase' }
+  }
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -78,7 +100,11 @@ export default function Auth({ isLogin, setPage }) {
         <div style={styles.logoWrap}>
           <img src="/logo.png" alt="Funaabsu League Prediction" style={styles.logoImg} />
         </div>
-        <h1 style={styles.title}>FANTASY FUNAAB<br />FOOTBALL LEAGUE</h1>
+        <h1 style={styles.title}>
+          FUNAABSU
+          <span style={{ color: c.green, display: 'block' }}>LEAGUE</span>
+          <span style={{ color: c.gold, display: 'block', fontSize: '.55em', letterSpacing: '3px' }}>Prediction</span>
+        </h1>
 
         <div style={styles.tabs}>
           <button style={{ ...styles.tab, ...(mode === 'login' ? styles.tabActive : {}) }} onClick={() => { setMode('login'); setError(null); setSuccess(null) }}>Login</button>
@@ -118,23 +144,3 @@ export default function Auth({ isLogin, setPage }) {
     </div>
   )
 }
-
-const styles = {
-  wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
-  bg: { position: 'fixed', inset: 0, backgroundImage: 'url(/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.3)', transform: 'scale(1.05)', zIndex: 0 },
-  overlay: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.6), rgba(8,12,10,0.88))', zIndex: 1 },
-  card: { position: 'relative', zIndex: 2, background: 'rgba(13,20,16,0.95)', border: '1px solid #1E2E20', padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '.85rem', margin: '1rem', backdropFilter: 'blur(20px)', maxHeight: '90vh', overflowY: 'auto' },
-  backBtn: { background: 'transparent', border: 'none', color: '#5A7A5E', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer', textAlign: 'left', padding: 0, letterSpacing: '1px' },
-  logoWrap: { display: 'flex', justifyContent: 'center' },
-  logoImg: { width: '60px', height: '60px', objectFit: 'contain' },
-  title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.7rem', textAlign: 'center', color: '#E8F5E9', lineHeight: 1.05, letterSpacing: '2px' },
-  tabs: { display: 'flex', background: '#080C0A', borderRadius: '8px', padding: '.25rem', gap: '.25rem' },
-  tab: { flex: 1, padding: '.6rem', borderRadius: '6px', border: 'none', background: 'transparent', color: '#5A7A5E', fontWeight: '800', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' },
-  tabActive: { background: '#0D1410', color: '#00E676', border: '1px solid #1E2E20' },
-  input: { padding: '.8rem 1rem', borderRadius: '8px', border: '1px solid #1E2E20', background: '#0D1410', color: '#E8F5E9', fontSize: '.88rem', outline: 'none', width: '100%' },
-  button: { padding: '.9rem', borderRadius: '8px', background: '#00E676', color: '#080C0A', fontWeight: '800', fontSize: '.88rem', border: 'none', cursor: 'pointer', letterSpacing: '2px' },
-  forgotBtn: { background: 'transparent', border: 'none', color: '#5A7A5E', fontSize: '.8rem', fontWeight: '700', cursor: 'pointer', textAlign: 'center', letterSpacing: '1px' },
-  error: { color: '#EF9A9A', fontSize: '.78rem', textAlign: 'center', background: 'rgba(239,154,154,0.08)', border: '1px solid rgba(239,154,154,0.2)', padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
-  successBox: { color: '#00E676', fontSize: '.78rem', textAlign: 'center', background: 'rgba(0,230,118,0.08)', border: '1px solid rgba(0,230,118,0.2)', padding: '.6rem', borderRadius: '7px', fontWeight: '600' },
-  footer: { borderTop: '1px solid #1E2E20', paddingTop: '.85rem', textAlign: 'center', fontSize: '.6rem', fontWeight: '700', letterSpacing: '2px', color: '#5A7A5E', textTransform: 'uppercase' }
-      }
