@@ -59,7 +59,7 @@ export default function Auth({ isLogin, setPage }) {
           full_name: form.full_name,
           matric_number: form.matric_number
         },
-        emailRedirectTo: 'https://funaab-fantasy-league.vercel.app'
+        emailRedirectTo: 'https://predictfl.vercel.app'
       }
     })
 
@@ -84,7 +84,7 @@ export default function Auth({ isLogin, setPage }) {
     setLoading(true)
     setError(null)
     const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-      redirectTo: 'https://funaab-fantasy-league.vercel.app'
+      redirectTo: 'https://predictfl.vercel.app'
     })
     if (error) setError(error.message)
     else setSuccess('✅ Password reset email sent!')
