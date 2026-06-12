@@ -139,11 +139,6 @@ export default function Landing({ setPage }) {
           ))}
         </div>
 
-        <div style={{ background: `rgba(${c.mutedRgb},0.06)`, border: `1px solid rgba(${c.mutedRgb},0.15)`, borderRadius: '10px', padding: '.9rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem' }}>
-          <div style={{ fontSize: '.8rem', color: c.muted }}>🏦 Platform fee (keeps the league running)</div>
-          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.4rem', color: c.muted }}>25%{prizePool > 0 ? ` · ${fmt(Math.floor(prizePool * 0.25))}` : ''}</div>
-        </div>
-
         <div style={{ marginTop: '1rem', padding: '.8rem 1rem', background: `rgba(${c.greenRgb},0.05)`, border: `1px solid rgba(${c.greenRgb},0.15)`, borderRadius: '8px', fontSize: '.78rem', color: c.muted, lineHeight: 1.6 }}>
           💡 Entry is <strong style={{ color: c.text }}>₦500</strong> per person. The more players join, the bigger everyone's payout. Pool updates live.
         </div>
