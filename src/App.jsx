@@ -67,8 +67,33 @@ export default function App() {
 
   if (loading) return (
     <ThemeProvider>
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dark)', color: '#00E676', fontFamily: 'Bebas Neue, sans-serif', fontSize: '1.5rem', letterSpacing: '3px' }}>
-        LOADING...
+      <style>{`
+        @keyframes logoPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.12); opacity: 0.85; }
+        }
+        @keyframes spinRing {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#080C0A', gap: '1.5rem' }}>
+        <img
+          src="/logo.png"
+          alt="Loading"
+          style={{ width: '80px', height: '80px', objectFit: 'contain', animation: 'logoPulse 1.6s ease-in-out infinite' }}
+        />
+        <div style={{ position: 'relative', width: '36px', height: '36px' }}>
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '3px solid rgba(0,230,118,0.15)',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '3px solid transparent',
+            borderTopColor: '#00E676',
+            animation: 'spinRing 0.9s linear infinite',
+          }} />
+        </div>
       </div>
     </ThemeProvider>
   )
