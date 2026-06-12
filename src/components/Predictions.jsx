@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/ThemeContext'
+import ShareSheet from './ShareSheet'
 
 const GOAL_RANGES = [
   { value: 'UNDER_1.5', label: 'Under 1.5', sub: '0–1 goals' },
@@ -195,6 +196,7 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [showShare, setShowShare] = useState(false)
 
   useEffect(() => {
     setOutcome(prediction?.predicted_outcome || null)
@@ -219,7 +221,8 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
     setSaving(false)
     if (ok) {
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => setSaved(false), 2500)
+      setShowShare(true)
     } else {
       setSaveError('Failed to save — check connection or login and try again')
     }
@@ -252,8 +255,11 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
   const homeShort = match.home_team.split(' ')[0]
   const awayShort = match.away_team.split(' ')[0]
 
+  const shareMessage = `🔥 I just predicted ${match.home_team} vs ${match.away_team} in PredictFL\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`
+
   return (
     <div style={{ background: cardBg, border: cardBorder, borderRadius: '12px', padding: '1.2rem' }}>
+      {showShare && <ShareSheet message={shareMessage} onClose={() => setShowShare(false)} />}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <div style={{ fontSize: '.65rem', fontWeight: '800', letterSpacing: '2px', textTransform: 'uppercase', color: c.muted }}>GW{match.matchday}</div>
@@ -347,6 +353,16 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
             : 'Match in progress — no prediction made'
           }
         </div>
+      )}
+
+      {/* Share button — shown when prediction is saved and match is locked or upcoming */}
+      {prediction && (
+        <button
+          onClick={() => setShowShare(true)}
+          style={{ width: '100%', marginTop: '.6rem', padding: '.55rem', borderRadius: '8px', background: 'transparent', border: `1px solid rgba(${c.greenRgb},.25)`, color: c.green, fontWeight: '800', fontSize: '.75rem', letterSpacing: '1px', cursor: 'pointer' }}
+        >
+          📤 Share your prediction
+        </button>
       )}
 
       {/* Prediction form (upcoming only) */}

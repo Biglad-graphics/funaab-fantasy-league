@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/ThemeContext'
+import ShareSheet from './ShareSheet'
 
 export default function Leaderboard({ manager }) {
   const { c } = useTheme()
@@ -10,6 +11,7 @@ export default function Leaderboard({ manager }) {
   const [selectedManager, setSelectedManager] = useState(null)
   const [managerDetails, setManagerDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [showShare, setShowShare] = useState(false)
 
   useEffect(() => {
     fetchLeaderboard()
@@ -149,11 +151,26 @@ export default function Leaderboard({ manager }) {
             <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: c.green, lineHeight: 1 }}>#{myRank}</div>
             <div style={{ fontSize: '.8rem', color: c.muted }}>of {managers.length} predictors</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: c.muted }}>Total Points</div>
-            <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: c.gold, lineHeight: 1 }}>{manager?.total_points ?? 0}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '.6rem' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', color: c.muted }}>Total Points</div>
+              <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '2.5rem', color: c.gold, lineHeight: 1 }}>{manager?.total_points ?? 0}</div>
+            </div>
+            <button
+              onClick={() => setShowShare(true)}
+              style={{ background: `rgba(${c.greenRgb},.1)`, border: `1px solid rgba(${c.greenRgb},.3)`, color: c.green, padding: '.4rem .9rem', borderRadius: '8px', fontSize: '.75rem', fontWeight: '800', cursor: 'pointer', letterSpacing: '1px' }}
+            >
+              📤 Share Rank
+            </button>
           </div>
         </div>
+      )}
+
+      {showShare && (
+        <ShareSheet
+          message={`🔥 I'm ranked #${myRank} in PredictFL with ${manager?.total_points ?? 0} pts 🏆\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`}
+          onClose={() => setShowShare(false)}
+        />
       )}
 
       <input
