@@ -22,9 +22,10 @@ export default function App() {
         if (session) {
           setSession(session)
           fetchManager(session.user.id)
+        } else {
+          setLoading(false)
         }
       })
-      // Clean URL
       window.history.replaceState(null, '', window.location.pathname)
       return
     }
@@ -45,13 +46,18 @@ export default function App() {
   }, [])
 
   const fetchManager = async (userId) => {
-    const { data } = await supabase
-      .from('managers')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setManager(data)
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('managers')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      setManager(data)
+    } catch {
+      setManager(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const logout = async () => {
