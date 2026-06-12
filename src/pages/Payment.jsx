@@ -80,7 +80,7 @@ export default function Payment({ session, onDone, onLogout }) {
       <div style={styles.bg} />
       <div style={styles.overlay} />
       <div style={styles.card}>
-        <img src="/funaab-fantasy-league/logo.png" alt="Funaabsu League Prediction" style={styles.logo} />
+        <img src="/logo.png" alt="Funaabsu League Prediction" style={styles.logo} />
         <h1 style={styles.title}>COMPLETE PAYMENT</h1>
 
         {/* Step indicators */}
