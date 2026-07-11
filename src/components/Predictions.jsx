@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/ThemeContext'
 import ShareSheet from './ShareSheet'
+import Countdown from './Countdown'
 
 const GOAL_RANGES = [
   { value: 'UNDER_1.5', label: 'Under 1.5', sub: '0–1 goals' },
@@ -284,7 +285,7 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
       {/* Prediction deadline */}
       {match.prediction_deadline && !isCompleted && !isLive && (
         <div style={{ fontSize: '.67rem', fontWeight: '700', marginBottom: '1rem', padding: '.3rem .7rem', borderRadius: '6px', display: 'inline-block', background: deadlinePassed ? `rgba(${c.redRgb},.08)` : `rgba(${c.goldRgb},.08)`, border: `1px solid ${deadlinePassed ? `rgba(${c.redRgb},.3)` : `rgba(${c.goldRgb},.3)`}`, color: deadlinePassed ? c.red : c.gold }}>
-          🔒 {deadlinePassed ? 'Predictions closed' : `Closes ${new Date(match.prediction_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+        🔒 {deadlinePassed ? 'Predictions closed' : <Countdown targetDate={match.prediction_deadline} prefix="Closes in " expiredText="Predictions closed" />}
         </div>
       )}
 
