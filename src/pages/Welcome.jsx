@@ -33,7 +33,7 @@ export default function Welcome({ manager, onDone }) {
     <div style={styles.wrapper}>
       <div style={styles.card}>
         <div style={{ fontSize: '3rem', textAlign: 'center' }}>🎯</div>
-        <h1 style={styles.title}>WELCOME TO FUNAABSU!</h1>
+        <h1 style={styles.title}>WELCOME TO COLLEGIATE SUPER LEAGUE!</h1>
         <p style={styles.sub}>Your account is confirmed. Pick a display name — this is how you'll appear on the leaderboard.</p>
         {error && <div style={styles.error}>{error}</div>}
         <input
