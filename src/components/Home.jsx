@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/ThemeContext'
+import Countdown from './Countdown'
 
 export default function Home({ manager, navigate }) {
   const { c } = useTheme()
@@ -143,7 +144,7 @@ export default function Home({ manager, navigate }) {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '.65rem', fontWeight: '700', letterSpacing: '1px', color: c.blue, textTransform: 'uppercase', marginBottom: '.3rem' }}>Kickoff</div>
               <div style={{ fontSize: '.85rem', fontWeight: '700', color: c.text }}>
-                {nextMatch.kickoff_time ? new Date(nextMatch.kickoff_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+              {nextMatch.kickoff_time ? <Countdown targetDate={nextMatch.kickoff_time} expiredText="Kicking off now" /> : 'TBD'}  
               </div>
               {navigate && (
                 <button onClick={() => navigate('predictions')} style={{ marginTop: '.6rem', padding: '.4rem .9rem', borderRadius: '6px', background: c.green, border: 'none', color: c.bg, fontWeight: '800', fontSize: '.72rem', cursor: 'pointer', letterSpacing: '.5px' }}>
