@@ -1,7 +1,11 @@
 import { useTheme } from '../lib/ThemeContext'
 
-export default function Pending({ rejected, onLogout }) {
-  const { c } = useTheme()
+export default function Pending({ rejected, manager, onLogout }) {
+   const { c } = useTheme()
+
+   const whatsappMessage = `Hi, I just made a payment for Collegiate Super League Prediction.\nName: ${manager?.full_name || manager?.team_name || ''}\nEmail: ${manager?.email || ''}\nPlease confirm my access. Thanks!`
+   const whatsappLink = `https://wa.me/2349036997098?text=${encodeURIComponent(whatsappMessage)}`
+
 
   const styles = {
     wrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: c.bg, padding: '2rem' },
