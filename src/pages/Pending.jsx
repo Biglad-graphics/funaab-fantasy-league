@@ -13,10 +13,8 @@ export default function Pending({ rejected, manager, onLogout }) {
     title: { fontFamily: 'Bebas Neue, sans-serif', fontSize: '2rem', letterSpacing: '2px' },
     sub: { color: c.muted, fontSize: '.88rem', lineHeight: 1.7 },
     infoBox: { background: `rgba(${c.greenRgb},.05)`, border: `1px solid rgba(${c.greenRgb},.15)`, borderRadius: '10px', padding: '1rem', fontSize: '.8rem', color: c.muted, lineHeight: 1.8 },
-    outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, fontWeight: '700', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' }
-    infoBox: { background: `rgba(${c.greenRgb},.05)`, border: `1px solid rgba(${c.greenRgb},.15)`, ...
     link: { color: c.green, fontWeight: '700', textDecoration: 'underline' },
-    outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'tr...
+    outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, fontWeight: '700', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' }
     }
 
   return (
