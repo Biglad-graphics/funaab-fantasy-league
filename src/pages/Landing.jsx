@@ -41,7 +41,7 @@ export default function Landing({ setPage }) {
 
       {/* Nav */}
       <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: c.navBg, borderBottom: `1px solid ${c.border}`, backdropFilter: 'blur(10px)' }}>
-        <img src="/logo.png" alt="PredictFL" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="PredictCSL" style={{ width: '42px', height: '42px', objectFit: 'contain' }} />
         <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
           <button onClick={toggle} style={{ background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, padding: '.4rem .6rem', borderRadius: '6px', fontSize: '.88rem', cursor: 'pointer' }}>
             {theme === 'dark' ? '☀️' : '🌙'}
@@ -73,7 +73,7 @@ export default function Landing({ setPage }) {
           </h1>
 
           <p style={{ margin: '1.5rem auto', maxWidth: '480px', color: 'rgba(255,255,255,0.6)', fontSize: '.95rem', lineHeight: 1.7 }}>
-            Predict FUNAABSU match outcomes every gameweek. Top scorers at the end of the season split the prize pool.
+            Predict CSL match outcomes every gameweek. Top scorers at the end of the season split the prize pool.
           </p>
 
           {/* Live prize pool */}
@@ -220,7 +220,7 @@ export default function Landing({ setPage }) {
 
       {/* Footer */}
       <div style={{ borderTop: `1px solid ${c.border}`, padding: '2rem', textAlign: 'center' }}>
-        <p style={{ fontSize: '.72rem', color: c.muted }}>© 2025 PredictFL · FUNAABSU Official Fantasy Platform</p>
+        <p style={{ fontSize: '.72rem', color: c.muted }}>© 2025 PredictCSL · Collegiate Super League Official Prediction Platform</p>
       </div>
     </div>
   )
