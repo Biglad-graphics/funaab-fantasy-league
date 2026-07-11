@@ -14,7 +14,10 @@ export default function Pending({ rejected, manager, onLogout }) {
     sub: { color: c.muted, fontSize: '.88rem', lineHeight: 1.7 },
     infoBox: { background: `rgba(${c.greenRgb},.05)`, border: `1px solid rgba(${c.greenRgb},.15)`, borderRadius: '10px', padding: '1rem', fontSize: '.8rem', color: c.muted, lineHeight: 1.8 },
     outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'transparent', border: `1px solid ${c.border}`, color: c.muted, fontWeight: '700', fontSize: '.82rem', cursor: 'pointer', letterSpacing: '1px' }
-  }
+    infoBox: { background: `rgba(${c.greenRgb},.05)`, border: `1px solid rgba(${c.greenRgb},.15)`, ...
+    link: { color: c.green, fontWeight: '700', textDecoration: 'underline' },
+    outlineBtn: { padding: '.8rem', borderRadius: '8px', background: 'tr...
+    }
 
   return (
     <div style={styles.wrapper}>
@@ -25,13 +28,13 @@ export default function Pending({ rejected, manager, onLogout }) {
         </h2>
         <p style={styles.sub}>
           {rejected
-            ? 'Your payment was not confirmed. Please contact the admin or resubmit your proof.'
+            ? <>Your payment was not confirmed. Please <a href={whatsappLink} target="_blank" rel="noopener noreferrer" style={styles.link}>contact the admin</a> or resubmit your proof.</>
             : 'Your payment is being reviewed. You will get access once confirmed by admin.'}
         </p>
         {!rejected && (
           <div style={styles.infoBox}>
             📱 Sent to <strong style={{ color: c.text }}>9036997098 OPay</strong><br />
-            If you haven't paid yet, please do so and contact admin.
+            If you haven't paid yet, please do so and <a href={whatsappLink} target="_blank" rel="noopener noreferrer" style={styles.link}>contact admin</a>.
           </div>
         )}
         <button style={styles.outlineBtn} onClick={onLogout}>LOGOUT</button>
