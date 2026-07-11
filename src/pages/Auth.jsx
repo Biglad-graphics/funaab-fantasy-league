@@ -98,11 +98,11 @@ export default function Auth({ isLogin, setPage }) {
       <div style={styles.card}>
         <button style={styles.backBtn} onClick={() => setPage('landing')}>← Back</button>
         <div style={styles.logoWrap}>
-          <img src="/logo.png" alt="Funaabsu League Prediction" style={styles.logoImg} />
+          <img src="/logo.png" alt="CSL Prediction" style={styles.logoImg} />
         </div>
         <h1 style={styles.title}>
-          FUNAABSU
-          <span style={{ color: c.green, display: 'block' }}>LEAGUE</span>
+          COLLEGIATE
+          <span style={{ color: c.green, display: 'block' }}>SUPER LEAGUE</span>
           <span style={{ color: c.gold, display: 'block', fontSize: '.55em', letterSpacing: '3px' }}>Prediction</span>
         </h1>
 
@@ -139,7 +139,7 @@ export default function Auth({ isLogin, setPage }) {
           </>
         )}
 
-        <div style={styles.footer}>FUNAAB LEAGUE · OFFICIAL FANTASY PLATFORM</div>
+        <div style={styles.footer}>COLLEGIATE SUPER LEAGUE · OFFICIAL FANTASY PLATFORM</div>
       </div>
     </div>
   )
