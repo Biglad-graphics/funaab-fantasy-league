@@ -1,34 +1,32 @@
 import { useState, useEffect } from 'react'
 
+function pad(n) {
+  return String(n).padStart(2, '0')
+}
+
 function formatRemaining(ms) {
   if (ms <= 0) return null
   const totalSeconds = Math.floor(ms / 1000)
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
-
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  if (minutes > 0) return `${minutes}m ${seconds}s`
-  return `${seconds}s`
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
 }
 
 /**
- * Live-ticking countdown to a target date.
+ * Live-ticking countdown to a target date, shown as HH:MM:SS.
+ * Hours roll past 24 rather than switching to a "days" unit
+ * (e.g. a 2-day-out match shows as 53:24:10).
  * Renders `prefix + time remaining`, or `expiredText` once the target has passed.
- * Ticks every second while under an hour remains, otherwise every 30s (cheaper re-renders).
  */
 export default function Countdown({ targetDate, prefix = '', expiredText = 'Closed' }) {
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
     if (!targetDate) return
-    const remaining = new Date(targetDate).getTime() - Date.now()
-    const tickMs = remaining < 60 * 60 * 1000 ? 1000 : 30000
-    const id = setInterval(() => setNow(Date.now()), tickMs)
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [targetDate, now])
+  }, [targetDate])
 
   if (!targetDate) return null
 
