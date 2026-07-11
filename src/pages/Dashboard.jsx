@@ -29,7 +29,7 @@ export default function Dashboard({ session, manager, onLogout, refetchManager }
 
       {/* Nav */}
       <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', background: c.navBg, borderBottom: `1px solid ${c.border}`, backdropFilter: 'blur(10px)' }}>
-        <img src="/logo.png" alt="Funaabsu League Prediction" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="Collegiate Super League Prediction" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
 
         {/* Desktop nav */}
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }} className="desktop-nav">
