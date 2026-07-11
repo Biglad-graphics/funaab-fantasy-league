@@ -56,7 +56,7 @@ export default function Landing({ setPage }) {
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/field.png)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(3px) brightness(0.25)', transform: 'scale(1.05)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(8,12,10,0.5), rgba(8,12,10,0.92))' }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: '820px' }}>
-          <img src="/logo.png" alt="PredictFL" style={{ width: '72px', height: '72px', objectFit: 'contain', marginBottom: '1.2rem' }} />
+          <img src="/logo.png" alt="PredictCSL" style={{ width: '72px', height: '72px', objectFit: 'contain', marginBottom: '1.2rem' }} />
 
           {/* Urgency pill */}
           {playerCount > 0 && (
