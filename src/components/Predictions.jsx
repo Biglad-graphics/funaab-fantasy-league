@@ -255,7 +255,7 @@ function PredictionCard({ match, prediction, questions, answers, onSave }) {
   const homeShort = match.home_team.split(' ')[0]
   const awayShort = match.away_team.split(' ')[0]
 
-  const shareMessage = `🔥 I just predicted ${match.home_team} vs ${match.away_team} in PredictFL\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`
+  const shareMessage = `🔥 I just predicted ${match.home_team} vs ${match.away_team} in PredictCSL\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`
 
   return (
     <div style={{ background: cardBg, border: cardBorder, borderRadius: '12px', padding: '1.2rem' }}>
