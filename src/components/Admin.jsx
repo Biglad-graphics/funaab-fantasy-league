@@ -660,7 +660,7 @@ function SeasonTab() {
     if (champion) {
       await supabase.from('announcements').insert({
         title: `🏆 ${seasonName} Season Champion!`,
-        body: `Congratulations to ${champion.team_name || champion.full_name} for winning the Funaabsu League Prediction ${seasonName} season with ${champion.total_points} points! 🎉`,
+        body: `Congratulations to ${champion.team_name || champion.full_name} for winning the Collegiate Super League Prediction ${seasonName} season with ${champion.total_points} points! 🎉`,
         is_pinned: true
       })
     }
