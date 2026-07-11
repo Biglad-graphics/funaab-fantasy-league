@@ -168,7 +168,7 @@ export default function Leaderboard({ manager }) {
 
       {showShare && (
         <ShareSheet
-          message={`🔥 I'm ranked #${myRank} in PredictFL with ${manager?.total_points ?? 0} pts 🏆\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`}
+          message={`🔥 I'm ranked #${myRank} in PredictCSL with ${manager?.total_points ?? 0} pts 🏆\n\nThink you can beat me?\n\nJoin for ₦500 👇\nhttps://predictfl.vercel.app`}
           onClose={() => setShowShare(false)}
         />
       )}
